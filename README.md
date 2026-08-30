@@ -81,15 +81,15 @@ Write an executable at `<source>/<namespace>/<command>` and it exists.
 
 A namespace is a folder in a source. It appears when the second command needs it: `git` earns one with a single member, because *save what* has no answer without it, while a namespace holding one self-explanatory command is noise.
 
-**A namespace describes itself in a `.info` file**, which also declares its short alias:
+**A namespace declares itself in a `.info` file** — a description, a short alias, or both. Every namespace here carries the alias alone:
 
 ```
-git, wrapped.
-
 alias: g
 ```
 
-The first paragraph is the description. An `alias:` line anywhere gives a second name the namespace answers to — `util g save` — and never counts as part of the description. An alias is for a name that has gone ambiguous and still wants to be brief.
+The description is the first paragraph. An `alias:` line anywhere is stripped out before that paragraph is read, so the two sit in either order. An alias gives the namespace a second name — `util g save`. An alias is for a name that has gone ambiguous and still wants to be brief.
+
+**Most namespaces need no description, and one here needs no `.info` at all.** `fs` has none: the name says what it holds, and a description repeating a name is worse than none. `git` and `github` keep theirs only because an alias needs somewhere to live.
 
 **Namespaces merge across sources.** Two sources both holding a `git/` folder contribute to one `git` namespace. The first source to carry a `.info` names it, and a second source adding commands inherits the description and the alias rather than competing for them.
 
@@ -97,7 +97,9 @@ The first paragraph is the description. An `alias:` line anywhere gives a second
 
 **A `description:` line inside a comment**, in the file's first 50 lines, in whatever comment syntax the language uses. `util ls` prints it beside the name.
 
-A description is an index entry, never the file's documentation. The header comment explaining what a command does stays as long as it needs to be; this is the one line that fits in a list. It runs to the end of its sentence or 120 characters, whichever comes first.
+**Write a few words, then stop.** A description is an index entry, never the file's documentation. The header comment explaining what a command does stays as long as it needs to be; this is the one line that fits in a list. It is cut at the first full stop or 120 characters, whichever comes first, so a second sentence is written and never seen.
+
+**In markdown, a fenced code block is skipped.** A `#` heading and a `#` comment are one line to the reader, so a page teaching this convention would otherwise be described by its own example — the block under `## Writing a command` above is exactly that shape. The example describes nothing. A marker outside the fences describes the page.
 
 **A command missing one still lists, with the field blank.** The gap is the reminder.
 

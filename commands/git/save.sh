@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# description: add, commit and push in one step.
+# description: add, commit and push in one step
 #
 # util git save — the three git commands that always run together.
 #

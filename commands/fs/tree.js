@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// description: a directory tree with the noise stripped out, each entry's own description beside it
+// description: a directory tree with the noise stripped out
 //
 // Usage: util fs tree [path] [--depth N] [--except pattern]
 //   --depth N      Limit output depth (default: unlimited)

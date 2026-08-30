@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * description: many files as one stream, each in a fenced block tagged with its path
+ * description: many files as one stream, each in a fenced block
  *
  * Merge files and folders into a single LLM-friendly output streamed to stdout.
  *

@@ -26,9 +26,11 @@ test('the shipped source lists three namespaces, two of them aliased', () => {
   const listing = util(home, ['ls']);
 
   assert.strictEqual(listing.code, 0, listing.stderr);
-  assert.match(listing.stdout, /fs\s+files and directories/);
-  assert.match(listing.stdout, /git · g\s+git, wrapped/);
-  assert.match(listing.stdout, /github · gh\s+the GitHub API/);
+  // None of the three carries a description: each name already says what it
+  // holds, so the `.info` files exist only where an alias needs a home.
+  assert.match(listing.stdout, /^ {2}fs$/m);
+  assert.match(listing.stdout, /^ {2}git · g$/m);
+  assert.match(listing.stdout, /^ {2}github · gh$/m);
   for (const name of ['tree', 'merge', 'link', 'save', 'clone', 'bookmark']) {
     assert.match(listing.stdout, new RegExp(`\\b${name}\\b`), `${name} is listed`);
   }
@@ -46,6 +48,28 @@ test('fs tree prints each entry with its own description, and hides the noise', 
   assert.match(result.stdout, /parser\.js/);
   assert.match(result.stdout, /Splits the input into tokens/);
   assert.doesNotMatch(result.stdout, /node_modules/, 'node_modules is hidden by default');
+});
+
+test('fs tree ignores a description inside a fenced block, and takes the one outside it', () => {
+  const home = shipped('fs-tree-fences');
+  const dir = scratch('fs-tree-fences-target');
+  // The shape every page documenting the convention has, this repository's
+  // README included: an example above, the page's own marker below.
+  write(dir, 'docs/README.md', [
+    '# Writing a command',
+    '',
+    '```bash',
+    '# description: the example, which belongs to nothing',
+    '```',
+    '',
+    '<!-- description: how a command gets written -->',
+    '',
+  ].join('\n'));
+
+  const result = util(home, ['fs', 'tree', dir]);
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.match(result.stdout, /how a command gets written/);
+  assert.doesNotMatch(result.stdout, /belongs to nothing/, 'an example is not a description');
 });
 
 test('fs tree is reachable by its short name, because no other namespace has a tree', () => {
