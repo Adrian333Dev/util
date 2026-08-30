@@ -2,7 +2,7 @@
 
 A dispatcher for the general-purpose commands you type: `util git save`, `util fs tree`, `util github clone`.
 
-It ships no commands of its own. It reads a list of directories, builds one namespace out of everything it finds, and runs the file you named. That is what lets a public repository, a private one and a single project all contribute commands without any of them knowing about the others.
+Nothing is built into the program. It reads a list of directories, builds one namespace out of everything it finds, and runs the file you named. This repository ships one of those directories — `commands/` — and it is registered exactly like the ones you add. That is what lets a public repository, a private one and a single project all contribute commands without any of them knowing about the others.
 
 - [What `util` is for](#what-util-is-for) — why these commands are not one program
 - [The shape](#the-shape) — how a command is typed

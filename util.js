@@ -3,9 +3,11 @@
 /**
  * util — the commands you type that have nothing to do with each other.
  *
- * A dispatcher, not a monolith. It ships no commands: it reads a registry of
- * source directories, builds one namespace out of everything it finds, and
- * runs the file you named. A source is any directory laid out
+ * A dispatcher, not a monolith. Nothing is built into this program: it reads a
+ * registry of source directories, builds one namespace out of everything it
+ * finds, and runs the file you named. The `commands/` folder beside this file
+ * is one of those directories, registered like any other. A source is any
+ * directory laid out
  * `<namespace>/<command>`, so a command is an executable in any language and
  * `util` never sees its arguments.
  *
