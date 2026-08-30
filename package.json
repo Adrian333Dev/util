@@ -1,0 +1,14 @@
+{
+  "name": "util-cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "A dispatcher for general-purpose commands, joined from several sources into one namespace.",
+  "bin": {
+    "util": "./util.js",
+    "u": "./util.js"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\""
+  }
+}
