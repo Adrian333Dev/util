@@ -11,7 +11,7 @@ Nothing is built into the program. It reads a list of directories, builds one na
 - [Namespaces](#namespaces) — the qualifier, and its short alias
 - [Descriptions](#descriptions) — the one line printed beside a name
 - [Two sources, one name](#two-sources-one-name) — what happens, and why
-- [Installing](#installing) — not built yet
+- [Installing](#installing) — two names, and one source
 - [Development](#development) — the layout and the tests
 
 ## What `util` is for
@@ -34,10 +34,11 @@ u ...                              second name on PATH, same program
 
 **Everything after the command name passes through untouched.** `util` never parses a command's flags, because it dispatches to programs it did not write. `util git save --help` is that command's own help, printed by that command.
 
-Three things `util` answers itself, so no namespace can be called one of them:
+Four things `util` answers itself, so no namespace can be called one of them:
 
 ```
 util ls                    every command there is, grouped by source
+util install               link both names, and register this repository
 util source add <path>     read commands from a directory
 util help                  the shape, the conventions, and the listing
 ```
@@ -113,13 +114,16 @@ A private command deliberately overriding a public one is a real want. It gets a
 
 ## Installing
 
-**Not built.** `util install` will own the `PATH` links — `util` and `u` — and register this repository's `commands/` as the first source. Until then:
-
 ```bash
-ln -sfn "$PWD/util.js" ~/.local/bin/util
-ln -sfn "$PWD/util.js" ~/.local/bin/u
-util source add "$PWD/commands"
+node <clone>/util.js install
 ```
+
+**Run it by path once**, because `util` is not a command until that run has made it one. It links `util` and `u` in `~/.local/bin`, both pointing at `util.js`, and it registers this repository's `commands/` as a source. Everything after is `util install`.
+
+Nothing is copied. An edit in the clone is live the moment you save it, and a command added to `commands/` needs no re-run at all. When the clone moves, re-run it.
+
+- **`--bin <path>`** links somewhere other than `~/.local/bin`. `UTIL_BIN` sets the same directory from the environment, which is what the tests use.
+- **A real file already holding one of the names refuses.** The message names the path, nothing is linked, and no source is registered. An existing symlink is replaced without asking, because pointing a name at a moved clone is the whole reason to re-run.
 
 `~/.local/bin` has to be on your `PATH`.
 
@@ -128,7 +132,7 @@ util source add "$PWD/commands"
 ```
 util.js         the entry point: resolution and dispatch
 lib/            sources, the catalog, the description reader, the listing
-builtin/        the commands util answers itself — ls and source
+builtin/        the commands util answers itself — ls, install and source
 commands/       the public source: <namespace>/<command>
 tests/          node --test, no dependencies
 ```

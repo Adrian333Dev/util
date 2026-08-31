@@ -11,7 +11,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
-const { scratch, command, write, util } = require('./helpers/scratch');
+const { ROOT, scratch, command, write, util } = require('./helpers/scratch');
 
 /** A home, a source folder registered in it, and `util` bound to both. */
 function setup(name) {
@@ -230,4 +230,71 @@ test('a builtin refuses a word it cannot use rather than ignoring it', () => {
   const bare = run(['source', 'add']);
   assert.notStrictEqual(bare.code, 0);
   assert.match(bare.stderr, /usage: util source add <path>/);
+});
+
+test('install links both names and registers this repository as a source', () => {
+  const dir = scratch('install');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+
+  const result = util(home, ['install'], { bin });
+  assert.strictEqual(result.code, 0, result.stderr);
+
+  const entry = path.join(ROOT, 'util.js');
+  for (const name of ['util', 'u']) {
+    const linked = path.join(bin, name);
+    assert.ok(fs.lstatSync(linked).isSymbolicLink(), `${name} is a link`);
+    assert.strictEqual(fs.readlinkSync(linked), entry, `${name} points at the entry point`);
+  }
+
+  assert.match(fs.readFileSync(path.join(home, 'sources'), 'utf8'), /commands$/m);
+  assert.match(util(home, ['ls']).stdout, /save/, 'the registered source contributes commands');
+});
+
+test('install runs twice with the same result', () => {
+  const dir = scratch('install-twice');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+
+  util(home, ['install'], { bin });
+  const again = util(home, ['install'], { bin });
+  assert.strictEqual(again.code, 0, again.stderr);
+  assert.match(again.stdout, /source already registered/);
+
+  const registry = fs.readFileSync(path.join(home, 'sources'), 'utf8');
+  assert.strictEqual(registry.trim().split('\n').length, 1, 'the source is registered once');
+  assert.strictEqual(fs.readlinkSync(path.join(bin, 'util')), path.join(ROOT, 'util.js'));
+});
+
+test('install repoints a link left by an older clone', () => {
+  const dir = scratch('install-repoint');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+  const old = path.join(dir, 'old-clone', 'util.js');
+  fs.mkdirSync(path.dirname(old), { recursive: true });
+  fs.writeFileSync(old, '');
+  fs.mkdirSync(bin, { recursive: true });
+  fs.symlinkSync(old, path.join(bin, 'util'));
+
+  const result = util(home, ['install'], { bin });
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.strictEqual(fs.readlinkSync(path.join(bin, 'util')), path.join(ROOT, 'util.js'),
+    'moving the clone and re-running is what points the name at the new one');
+});
+
+test('install refuses a real file on PATH, and writes nothing at all', () => {
+  const dir = scratch('install-real-file');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+  fs.mkdirSync(bin, { recursive: true });
+  // The second name, so the first one would already be linked if the check
+  // ran per name rather than over all of them first.
+  fs.writeFileSync(path.join(bin, 'u'), 'somebody else\n');
+
+  const result = util(home, ['install'], { bin });
+  assert.notStrictEqual(result.code, 0);
+  assert.match(result.stderr, /is a real file, not a link/);
+  assert.strictEqual(fs.readFileSync(path.join(bin, 'u'), 'utf8'), 'somebody else\n');
+  assert.ok(!fs.existsSync(path.join(bin, 'util')), 'a refusal leaves the machine as it was');
+  assert.ok(!fs.existsSync(path.join(home, 'sources')), 'and registers nothing');
 });

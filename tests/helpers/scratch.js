@@ -48,13 +48,21 @@ function write(dir, relative, body) {
  * throwing: a refusal is the thing under test as often as the output is.
  */
 function util(home, args, options = {}) {
-  const { cwd = ROOT, project } = options;
+  const { cwd = ROOT, project, bin } = options;
   // Always set, even where a test wants no project source: unset, `util` asks
   // git where it is and finds this repository, so a `.util/` here would leak
   // into every test that never asked for one.
   const none = path.join(SCRATCH, 'no-project');
   fs.mkdirSync(none, { recursive: true });
-  const env = { ...process.env, UTIL_HOME: home, UTIL_PROJECT: project || none };
+  // Set for the same reason: unset, `util install` links into the real
+  // ~/.local/bin, so one test that forgot the option would put symlinks on the
+  // machine running the suite.
+  const env = {
+    ...process.env,
+    UTIL_HOME: home,
+    UTIL_PROJECT: project || none,
+    UTIL_BIN: bin || path.join(SCRATCH, 'no-bin'),
+  };
   const result = spawnSync(process.execPath, [path.join(ROOT, 'util.js'), ...args], {
     cwd,
     env,
