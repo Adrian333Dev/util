@@ -2,23 +2,23 @@
 
 A dispatcher for the general-purpose commands you type: `util git save`, `util fs tree`, `util github clone`.
 
-Nothing is built into the program. It reads a list of directories, builds one namespace out of everything it finds, and runs the file you named. This repository ships one of those directories — `commands/` — and it is registered exactly like the ones you add. That is what lets a public repository, a private one and a single project all contribute commands without any of them knowing about the others.
+Nothing is built into the program. It reads a list of directories, builds one namespace out of everything it finds, and runs the file you named. This repository ships one of those directories (`commands/`), registered exactly like the ones you add. A public repository, a private one, and a project can all contribute commands without knowing about each other.
 
-- [What `util` is for](#what-util-is-for) — why these commands are not one program
-- [The shape](#the-shape) — how a command is typed
-- [Sources](#sources) — where commands are read from
-- [Writing a command](#writing-a-command) — a file, in any language
-- [Namespaces](#namespaces) — the qualifier, and its short alias
-- [Descriptions](#descriptions) — the one line printed beside a name
-- [Two sources, one name](#two-sources-one-name) — what happens, and why
-- [Installing](#installing) — two names, and one source
-- [Development](#development) — the layout and the tests
+- [What util is for](#what-util-is-for) (why these commands are not one program)
+- [The shape](#the-shape) (how a command is typed)
+- [Sources](#sources) (where commands are read from)
+- [Writing a command](#writing-a-command) (a file, in any language)
+- [Namespaces](#namespaces) (the qualifier, and its short alias)
+- [Descriptions](#descriptions) (the one line printed beside a name)
+- [Two sources, one name](#two-sources-one-name) (what happens, and why)
+- [Installing](#installing) (two names, and one source)
+- [Development](#development) (the layout and the tests)
 
 ## What `util` is for
 
-A symlink builder, a repository cloner and an image optimiser share nothing but the person typing them. Each is useful on a machine with no project open, no ticket, and no workflow. They are also the commands that collect: 20 of them means 20 names on `PATH`, competing with real binaries — and the short obvious ones, `tree`, `link`, `clone`, `merge`, are all taken or ambiguous already.
+A symlink builder, a repository cloner, and an image optimiser share nothing but the person typing them. Each is useful on a machine with no project open, no ticket, and no workflow. Over time they accumulate: 20 commands means 20 names on `PATH` competing with real binaries, and the short obvious ones (`tree`, `link`, `clone`, `merge`) are taken or ambiguous.
 
-`util` gives them one name to enter through and a qualifier each. `gsave` meant *git save* and `fmerge` meant *file merge*; the old prefixes carried the qualifier as a letter, and the namespace spells it out instead.
+`util` gives them one entry point and a qualifier each: `util git save`, `util fs merge`, `util github clone`.
 
 **Some of these commands are private and some are public.** A source is a whole directory, and which repository it sits in is what makes it one or the other. Nothing inside a command is marked.
 
@@ -32,7 +32,7 @@ u ...                              second name on PATH, same program
 
 **A word naming no namespace is looked up across all of them.** It resolves when exactly one command has that name, so `util tree` finds `fs tree`. The day a second `tree` exists anywhere, the short form stops guessing and prints both full names. Brevity is free until the ambiguity is real, and you are told the moment it is.
 
-**Everything after the command name passes through untouched.** `util` never parses a command's flags, because it dispatches to programs it did not write. `util git save --help` is that command's own help, printed by that command.
+**Everything after the command name passes through untouched.** `util` dispatches to programs it did not write, so it never parses their flags. `util git save --help` is that command's own help, printed by that command.
 
 Four things `util` answers itself, so no namespace can be called one of them:
 
@@ -53,13 +53,13 @@ util source ls
 util source drop ~/code/util/commands
 ```
 
-The registry is `~/.util/sources` — one path per line, `#` for a comment, `~` allowed. Editing it by hand is as supported as the three commands above. Set `UTIL_HOME` to move the whole folder, which is what the tests do.
+The registry is `~/.util/sources`: one path per line, `#` for a comment, `~` allowed. Editing it by hand is as supported as the three commands above. Set `UTIL_HOME` to move the whole folder, which is what the tests do.
 
 Three kinds of source, and the directory decides the kind:
 
-- **Public** — this repository's own `commands/`, registered when you install
-- **Private** — a second repository, registered by hand, never published
-- **A project's own** — `<project-root>/.util/`, picked up whenever your working directory is inside that project, and never written to the registry
+- **Public**: this repository's own `commands/`, registered when you install
+- **Private**: a second repository, registered by hand, never published
+- **A project's own**: `<project-root>/.util/`, picked up whenever your working directory is inside that project, and never written to the registry
 
 **Promotion is a move.** A command that started in one project and turns out to be general is `mv <project>/.util/git/foo <util>/commands/git/foo`, and nothing else.
 
@@ -75,20 +75,20 @@ Write an executable at `<source>/<namespace>/<command>` and it exists.
 
 - **Any language.** `util` runs the file and hands it every argument. It needs a shebang line and its execute bit, and `util ls` tells you when the bit is missing.
 - **The filename is the command name with any extension dropped.** `git/save.sh` is `util git save`, so a script keeps the extension that says what runs it and the command stays a word.
-- **The terminal passes through.** A command that prompts, pages or prints colour behaves exactly as it does when you run it by path.
+- **The terminal passes through.** A command that prompts, pages, or prints colour behaves exactly as it does when you run it by path.
 - **A command exits with its own status**, and `util` exits with the same one.
 
 ## Namespaces
 
 A namespace is a folder in a source. It appears when the second command needs it: `git` earns one with a single member, because *save what* has no answer without it, while a namespace holding one self-explanatory command is noise.
 
-**A namespace declares itself in a `.info` file** — a description, a short alias, or both. Every namespace here carries the alias alone:
+**A namespace declares itself in a `.info` file**: a description, a short alias, or both. Every namespace here carries the alias alone:
 
 ```
 alias: g
 ```
 
-The description is the first paragraph. An `alias:` line anywhere is stripped out before that paragraph is read, so the two sit in either order. An alias gives the namespace a second name — `util g save`. An alias is for a name that has gone ambiguous and still wants to be brief.
+The description is the first paragraph. An `alias:` line anywhere is stripped out before that paragraph is read, so the two sit in either order. An alias gives the namespace a second name (`util g save`), for a name that has gone ambiguous and still wants to be brief.
 
 **Most namespaces need no description, and one here needs no `.info` at all.** `fs` has none: the name says what it holds, and a description repeating a name is worse than none. `git` and `github` keep theirs only because an alias needs somewhere to live.
 
@@ -100,7 +100,7 @@ The description is the first paragraph. An `alias:` line anywhere is stripped ou
 
 **Write a few words, then stop.** A description is an index entry, never the file's documentation. The header comment explaining what a command does stays as long as it needs to be; this is the one line that fits in a list. It is cut at the first full stop or 120 characters, whichever comes first, so a second sentence is written and never seen.
 
-**In markdown, a fenced code block is skipped.** A `#` heading and a `#` comment are one line to the reader, so a page teaching this convention would otherwise be described by its own example — the block under `## Writing a command` above is exactly that shape. The example describes nothing. A marker outside the fences describes the page.
+**In markdown, a fenced code block is skipped.** A `#` heading and a `#` comment are one line to the reader, so a page teaching this convention would otherwise be described by its own example (the block under `## Writing a command` above is exactly that shape). The example describes nothing. A marker outside the fences describes the page.
 
 **A command missing one still lists, with the field blank.** The gap is the reminder.
 
@@ -110,7 +110,7 @@ The description is the first paragraph. An `alias:` line anywhere is stripped ou
 
 The refusal is scoped to that one command. Everything else in both sources keeps working, and `util ls` marks the clash with both paths, so the listing is where you go to see what happened.
 
-A private command deliberately overriding a public one is a real want. It gets an explicit marker the first time somebody needs it, and not before.
+A private command deliberately overriding a public one is a real want. That override is not supported yet.
 
 ## Installing
 
@@ -132,7 +132,7 @@ Nothing is copied. An edit in the clone is live the moment you save it, and a co
 ```
 util.js         the entry point: resolution and dispatch
 lib/            sources, the catalog, the description reader, the listing
-builtin/        the commands util answers itself — ls, install and source
+builtin/        the commands util answers itself: ls, install, and source
 commands/       the public source: <namespace>/<command>
 tests/          node --test, no dependencies
 ```
@@ -143,4 +143,4 @@ npm test
 
 No dependencies and nothing to build. `node --test` is built into Node, and every test runs against a scratch `UTIL_HOME` rather than the registry on your machine.
 
-**One rule from `flow` does not transfer.** `flow` declares every flag each command accepts and refuses an undeclared one. `util` cannot: it dispatches to programs it did not write, so each command validates its own arguments and `util` passes them through.
+`util` does not validate command arguments. It dispatches to programs it did not write, so each command validates its own flags and `util` passes everything through.
