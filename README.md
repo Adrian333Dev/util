@@ -4,15 +4,17 @@ A dispatcher for the general-purpose commands you type: `util git save`, `util f
 
 Nothing is built into the program. It reads a list of directories, builds one namespace out of everything it finds, and runs the file you named. This repository ships one of those directories (`commands/`), registered exactly like the ones you add. A public repository, a private one, and a project can all contribute commands without knowing about each other.
 
-- [What util is for](#what-util-is-for) (why these commands are not one program)
-- [The shape](#the-shape) (how a command is typed)
-- [Sources](#sources) (where commands are read from)
-- [Writing a command](#writing-a-command) (a file, in any language)
-- [Namespaces](#namespaces) (the qualifier, and its short alias)
-- [Descriptions](#descriptions) (the one line printed beside a name)
-- [Two sources, one name](#two-sources-one-name) (what happens, and why)
-- [Installing](#installing) (two names, and one source)
-- [Development](#development) (the layout and the tests)
+## Table of contents
+
+- [What util is for](#what-util-is-for)
+- [The shape](#the-shape)
+- [Sources](#sources)
+- [Writing a command](#writing-a-command)
+- [Namespaces](#namespaces)
+- [Descriptions](#descriptions)
+- [Two sources, one name](#two-sources-one-name)
+- [Installing](#installing)
+- [Development](#development)
 
 ## What `util` is for
 
