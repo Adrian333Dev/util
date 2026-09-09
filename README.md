@@ -8,6 +8,8 @@ Nothing is built into the program. It reads a list of directories, builds one na
 
 - [What util is for](#what-util-is-for)
 - [The shape](#the-shape)
+- [Commands](#commands)
+  - [The `open` block](#the-open-block)
 - [Sources](#sources)
 - [Writing a command](#writing-a-command)
 - [Namespaces](#namespaces)
@@ -44,6 +46,45 @@ util install               link both names, and register this repository
 util source add <path>     read commands from a directory
 util help                  the shape, the conventions, and the listing
 ```
+
+## Commands
+
+What this repository ships. `util ls` prints the same list off the disk, and `--help` on any of them is that command's own help.
+
+**`fs`**
+
+- **`tree <path>`**: a directory tree with the noise stripped out, each entry carrying its own `description:` line.
+- **`merge <path>...`**: many files as one stream, each in a fenced block under its path. `src/parser.js:40-120` takes a line range, `--ext` and `--except` filter, `--force` passes the 2000-line limit.
+- **`open <file>`**: the files a document names in its own fenced block, merged.
+- **`link <target> <name>`**: build a symlink, refusing to replace a real file.
+
+**`git`**, aliased `g`
+
+- **`save`**: add, commit and push in one step.
+
+**`github`**, aliased `gh`
+
+- **`clone <repo>...`**: clone one or more repositories from any URL form.
+- **`bookmark <repo>`**: append a repository's stars, language and pushed date to a file.
+
+### The `open` block
+
+**A document naming the files that go with it.** A handoff, a spec, a design note, a ticket: anything a reader arrives at cold, where the first thing they do is open four other files.
+
+```open
+plan.md
+src/parser.js:40-120   # where step 4 stopped
+```
+
+`util fs open notes.md` prints every file that block names, exactly as `fs merge` prints one named on the command line. The block is a saved argument list, written where the reason for it already lives.
+
+- **One path per line**, with a `#` note beside it. The note is stripped, and so is a blank line.
+- **A line range passes through**: `src/parser.js:40-120`.
+- **A path resolves beside the document first, then from the working directory.** A document names its neighbours by bare filename, and everything further away from wherever the command runs.
+- **A named file that no longer exists is listed as missing and skipped.** The block outlives the files it points at, so one dead path never costs the rest.
+- **Nothing is truncated.** Somebody wrote the list, so its size is a decision already made.
+
+**No block is a real answer**, and prints one line saying so. The document carries its own context and there is nothing to load.
 
 ## Sources
 

@@ -31,7 +31,7 @@ test('the shipped source lists three namespaces, two of them aliased', () => {
   assert.match(listing.stdout, /^ {2}fs$/m);
   assert.match(listing.stdout, /^ {2}git · g$/m);
   assert.match(listing.stdout, /^ {2}github · gh$/m);
-  for (const name of ['tree', 'merge', 'link', 'save', 'clone', 'bookmark']) {
+  for (const name of ['tree', 'merge', 'open', 'link', 'save', 'clone', 'bookmark']) {
     assert.match(listing.stdout, new RegExp(`\\b${name}\\b`), `${name} is listed`);
   }
 });
@@ -98,6 +98,42 @@ test('fs merge fences each file under its path, and honours a line range', () =>
   assert.strictEqual(sliced.code, 0, sliced.stderr);
   assert.match(sliced.stdout, /two/);
   assert.doesNotMatch(sliced.stdout, /four/, 'a range stops where it says it stops');
+});
+
+test('fs open loads what a document names, beside it first, and says what is missing', () => {
+  const home = shipped('fs-open');
+  const dir = scratch('fs-open-target');
+  write(dir, 'a.js', 'one\ntwo\nthree\nfour\n');
+  write(dir, 'b.md', '# heading\n');
+  write(dir, 'note.md', [
+    '# Notes',
+    '',
+    '```open',
+    'a.js',
+    'b.md:1-1     # a note beside the path',
+    'gone.md',
+    '```',
+    '',
+  ].join('\n'));
+
+  const result = util(home, ['fs', 'open', path.join(dir, 'note.md')], { cwd: dir });
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^open: 2 files, \d+ lines$/m);
+  assert.match(result.stdout, /^missing: gone\.md$/m, 'a dead path is named, never fatal');
+  assert.match(result.stdout, /```javascript a\.js/, 'a bare name resolves beside the document');
+  assert.match(result.stdout, /three/);
+  assert.match(result.stdout, /```markdown b\.md:1-1/);
+  assert.doesNotMatch(result.stdout, /a note beside the path/, 'the note is not a path');
+});
+
+test('fs open says so when a document carries no block', () => {
+  const home = shipped('fs-open-empty');
+  const dir = scratch('fs-open-empty-target');
+  write(dir, 'plain.md', '# Notes\n\nNothing to load.\n');
+
+  const result = util(home, ['fs', 'open', path.join(dir, 'plain.md')], { cwd: dir });
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.match(result.stdout, /^open: no block in plain\.md$/m, 'an absent block is an answer');
 });
 
 test('fs link builds a link, repoints its own, and refuses a real file', () => {
