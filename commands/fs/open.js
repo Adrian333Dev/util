@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 /**
- * description: the files a document names in its own fenced block, merged
+ * description: one document and every file it names, as one stream
  *
- * Read one document, find its fenced `open` block, and print every file the
- * block names as one stream. The block is a saved argument list for
- * `util fs merge`, which does the printing: same fences, same `:N-M` ranges,
- * same output.
+ * Print a document, then print every file its fenced `open` block names. One
+ * command replaces reading the document and then chasing what it points at.
+ * The document comes first, whole, and the files follow in block order.
  *
  * ```open
  * plan.md
@@ -17,7 +16,15 @@
  * working directory, so a document can name its neighbours by bare filename
  * and everything else from the repository root.
  *
- * Usage: util fs open <file>
+ * `util fs merge` does the printing, so the fences, the path labels and the
+ * `:N-M` ranges are its output, not a second format.
+ *
+ * Usage: util fs open [--files-only] <file>
+ *
+ * Options:
+ *   --files-only   Skip the document, print only what its block names. For a
+ *                  caller that has already put the document on screen, which
+ *                  is what `flow get --files` does with a ticket.
  *
  * Was Flow's own `flow-open` block until 2026-09-09, parsed inside `flow get`.
  * It is not a ticket format: any document can carry one.
@@ -63,10 +70,28 @@ function resolve(spec, bases) {
   return null;
 }
 
+/**
+ * `--force`: the block is an explicit list somebody wrote, so the size of it
+ * is a decision already made. Truncating it here would drop the file the
+ * reader asked for last.
+ *
+ * Two calls rather than one, because merge sorts the paths it is handed. The
+ * document has to lead, and its own name decides nothing about where it goes.
+ */
+const merge = (files) =>
+  execFileSync(process.execPath, [MERGE, '--force', ...files], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  }).trimEnd();
+
 function main() {
-  const [target] = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  const argv = process.argv.slice(2);
+  require('../../lib/command').helpOrRun(__filename, argv);
+  const filesOnly = argv.includes('--files-only');
+  const [target] = argv.filter((a) => !a.startsWith('--'));
   if (!target) {
-    process.stderr.write('Usage: util fs open <file>\n');
+    process.stderr.write('Usage: util fs open [--files-only] <file>\n');
     process.exit(1);
   }
 
@@ -76,38 +101,32 @@ function main() {
     process.exit(1);
   }
 
+  const rel = path.relative(process.cwd(), abs) || target;
   const specs = readBlock(fs.readFileSync(abs, 'utf8'));
-  if (!specs.length) {
-    process.stdout.write(`open: no block in ${path.relative(process.cwd(), abs) || target}\n`);
-    return;
-  }
-
   const bases = [path.dirname(abs), process.cwd()];
   const found = [];
   const missing = [];
   for (const spec of specs) {
     const hit = resolve(spec, bases);
-    if (hit) found.push(hit);
-    else missing.push(spec);
+    if (!hit) missing.push(spec);
+    // A block naming its own document prints it once, at the front, like any
+    // other run.
+    else if (hit !== abs) found.push(hit);
   }
 
-  let merged = '';
-  if (found.length) {
-    // `--force`: the block is an explicit list somebody wrote, so the size of
-    // it is a decision already made. Truncating it here would drop the file
-    // the reader asked for last.
-    merged = execFileSync(process.execPath, [MERGE, '--force', ...found], {
-      cwd: process.cwd(),
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    });
-  }
+  const parts = [];
+  if (!filesOnly) parts.push(merge([abs]));
+  if (found.length) parts.push(merge(found));
+  const body = parts.join('\n\n');
 
   const count = `${found.length} file${found.length === 1 ? '' : 's'}`;
-  const size = merged ? `, ${merged.split('\n').length} lines` : '';
-  process.stdout.write(`open: ${count}${size}\n`);
+  const head = specs.length
+    ? (filesOnly ? count : `${rel} and ${count}`)
+    : (filesOnly ? `no block in ${rel}` : `${rel}, no open block`);
+  const size = body ? `, ${body.split('\n').length} lines` : '';
+  process.stdout.write(`open: ${head}${size}\n`);
   if (missing.length) process.stdout.write(`missing: ${missing.join(', ')}\n`);
-  if (merged) process.stdout.write(`\n${merged.trimEnd()}\n`);
+  if (body) process.stdout.write(`\n${body}\n`);
 }
 
 main();

@@ -4,7 +4,8 @@
  *
  * Merge files and folders into a single LLM-friendly output streamed to stdout.
  *
- * Each file becomes a fenced code block: ```lang path/to/file
+ * Each file becomes a fenced code block labelled with its path, relative to
+ * the directory the command ran in: ``` path/to/file
  * Consecutive blank lines are collapsed to one.
  * If total output exceeds 2000 lines, prints a warning with per-file line counts instead.
  * Pass --force to bypass the limit.
@@ -30,15 +31,6 @@ const fs = require('fs');
 const path = require('path');
 
 const LINE_LIMIT = 2000;
-
-const EXT_TO_LANG = {
-  '.ts': 'typescript', '.tsx': 'tsx',
-  '.js': 'javascript', '.jsx': 'jsx', '.mjs': 'javascript', '.cjs': 'javascript',
-  '.md': 'markdown', '.mdx': 'mdx',
-  '.json': 'json', '.css': 'css', '.scss': 'scss',
-  '.html': 'html', '.sql': 'sql', '.py': 'python',
-  '.sh': 'shell', '.yaml': 'yaml', '.yml': 'yaml',
-};
 
 const DEFAULT_EXCLUDE_SEGMENTS = new Set([
   '.git', 'node_modules', 'dist', '.turbo', '__pycache__',
@@ -133,6 +125,7 @@ function parseLineRange(arg) {
 
 function parseArgs() {
   const args = process.argv.slice(2);
+  require('../../lib/command').helpOrRun(__filename, args);
   const pathArgs = [];
   const rangedSpecs = []; // { filePath, start, end }
   const extList = [];
@@ -164,12 +157,30 @@ function parseArgs() {
   return { pathArgs, rangedSpecs, extList, exceptPatterns, force };
 }
 
+/** The longest run of backticks the text itself opens a line with. */
+function longestFence(text) {
+  let longest = 0;
+  for (const m of text.matchAll(/^[ \t]*(`{3,})/gm)) longest = Math.max(longest, m[1].length);
+  return longest;
+}
+
+/**
+ * One file as a fenced block, labelled with its path.
+ *
+ * The fence runs one backtick longer than the longest fence inside the file,
+ * so a markdown file full of code blocks still closes where it should. Three
+ * backticks around a document that itself fences would end the block at the
+ * document's first fence, and everything after it would read as prose.
+ *
+ * No language on the opener. The path ends in the extension, so a reader and a
+ * model both already know what the file is, and the word costs a repetition on
+ * every file in the stream.
+ */
 function buildEntry(rel, raw, rangeLabel) {
-  const lang = EXT_TO_LANG[path.extname(rel).toLowerCase()] ?? '';
   const label = rangeLabel ? `${rel}:${rangeLabel}` : rel;
-  const opener = lang ? `\`\`\`${lang} ${label}` : `\`\`\` ${label}`;
   const content = collapseBlankLines(raw.trimEnd());
-  return { rel, block: `${opener}\n${content}\n\`\`\`` };
+  const fence = '`'.repeat(Math.max(3, longestFence(content) + 1));
+  return { rel, block: `${fence} ${label}\n${content}\n${fence}` };
 }
 
 function main() {
@@ -194,7 +205,7 @@ function main() {
     }
   }
 
-  // Ranged paths — line slice only, filters not applied (explicit inclusion)
+  // Ranged paths: line slice only, filters not applied (explicit inclusion)
   for (const { filePath, start, end } of rangedSpecs) {
     const resolved = path.resolve(process.cwd(), filePath);
     if (!fs.existsSync(resolved)) {

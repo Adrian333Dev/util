@@ -24,6 +24,7 @@ const HIDDEN = [
 // ─── arguments ───────────────────────────────────────────────────────────────
 
 const argv = process.argv.slice(2);
+require("../../lib/command").helpOrRun(__filename, argv);
 let target = ".";
 let maxDepth = Infinity;
 const except = [];

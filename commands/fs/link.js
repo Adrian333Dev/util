@@ -27,6 +27,7 @@ const die = (message) => {
 };
 
 const argv = process.argv.slice(2);
+require('../../lib/command').helpOrRun(__filename, argv);
 const force = argv.includes('--force');
 const paths = argv.filter((a) => a !== '--force');
 
