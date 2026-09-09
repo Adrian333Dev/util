@@ -116,7 +116,7 @@ function countLines(str) {
   return str.split('\n').length;
 }
 
-// Returns { filePath, start, end } if arg has :N-M suffix, else null.
+/** Returns { filePath, start, end } if arg has :N-M suffix, else null. */
 function parseLineRange(arg) {
   const m = arg.match(/^(.+):(\d+)-(\d+)$/);
   if (!m) return null;
