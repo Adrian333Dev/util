@@ -11,10 +11,10 @@
  * `<namespace>/<command>`, so a command is an executable in any language and
  * `util` never sees its arguments.
  *
- * That last part is the one rule `flow` follows and this does not. `flow`
- * declares every flag it accepts and refuses an undeclared one. `util`
- * dispatches to programs it did not write, so everything after the command
- * name passes through untouched and each command validates its own.
+ * That last part is what separates this from a program with subcommands. Such
+ * a program declares every flag it accepts and refuses an undeclared one.
+ * `util` dispatches to programs it did not write, so everything after the
+ * command name passes through untouched and each command validates its own.
  *
  *   util <namespace> <command> [args]
  *   util <command> [args]              unique across namespaces, so it resolves

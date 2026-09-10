@@ -13,9 +13,9 @@
 # The line is printed as well as appended, so piping it somewhere else works
 # and the append is visible when it does not.
 #
-# Needs the `gh` CLI, authenticated. Was `bin/add-repo` in the toolbox repo,
-# where the target file resolved against that one repo's root; here it resolves
-# against the directory you are standing in.
+# Needs the `gh` CLI, authenticated. The target file resolves against the
+# directory you are standing in, so bookmarking from two projects appends to
+# two different files.
 
 set -uo pipefail
 

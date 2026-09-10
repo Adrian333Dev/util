@@ -89,7 +89,7 @@ test('every shipped command prints its own header when asked for help', () => {
   // cannot require lib/command.js. Every other command goes through the shared
   // reader, and the three header styles are all represented here.
   const expected = {
-    'fs tree': /^Usage: util fs tree/,
+    'fs tree': /^util fs tree:/,
     'fs link': /^Usage: util fs link/,
     'fs open': /^Print a document/,
     'fs merge': /^Merge files and folders/,
@@ -102,6 +102,13 @@ test('every shipped command prints its own header when asked for help', () => {
     assert.strictEqual(run.code, 0, `${name} --help exits 0: ${run.stderr}`);
     assert.match(run.stdout.trim(), opening, `${name} --help prints its header`);
     assert.doesNotMatch(run.stdout, /^description:/m, `${name} hides the index line`);
+    // A header is what a user reads, so it carries no repository history and no
+    // note to ourselves. `git work` keeps its provenance in a second comment
+    // block, below the one this prints.
+    assert.doesNotMatch(run.stdout, /\bWas\b|\bFlow\b|\bTODO\b/,
+      `${name} --help carries no provenance and no TODO`);
+    assert.doesNotMatch(run.stdout, /^\s*\/\s*$/m,
+      `${name} --help drops the comment terminator rather than printing it`);
   }
 });
 

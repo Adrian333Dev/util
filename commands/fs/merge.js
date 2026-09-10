@@ -21,14 +21,18 @@
  *   file.md            Full file
  *   file.md:45-89      Lines 45-89 only (1-indexed, inclusive)
  *   src/               Folder (recursive)
- *
- * Was `fmerge` in the Flow repo until 2026-08-30.
- *
- * TODO: --strip-comments opt-in flag (risky for TS: @ts-ignore, declare const, type comments)
  */
 
 const fs = require('fs');
 const path = require('path');
+
+const ME = 'util fs merge';
+const USAGE = `${ME} [--ext ts,tsx] [--except pattern] [--force] <path1[:N-M]> [path2] ... [-- note]`;
+
+const die = (message) => {
+  process.stderr.write(`${ME}: ${message}\n  usage: ${USAGE}\n`);
+  process.exit(1);
+};
 
 const LINE_LIMIT = 2000;
 
@@ -132,24 +136,34 @@ function parseArgs() {
   const exceptPatterns = [];
   let force = false;
 
+  // A flag missing its value used to fall through both branches and vanish,
+  // and an unknown one still does nothing. Either way the merge ran and exited
+  // 0 over the wrong set of files, which reads exactly like the right one.
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--') {
+    const arg = args[i];
+    if (arg === '--') {
       break; // everything after is prose for the model, never a path
-    } else if (args[i] === '--ext' && args[i + 1]) {
-      extList.push(...args[++i].split(',').map((e) => {
+    } else if (arg === '--ext') {
+      const value = args[++i];
+      if (value === undefined) die('--ext wants extensions, comma separated, like ts,tsx,md.');
+      extList.push(...value.split(',').map((e) => {
         const t = e.trim();
         return t.startsWith('.') ? t : '.' + t;
       }).filter(Boolean));
-    } else if (args[i] === '--except' && args[i + 1]) {
-      exceptPatterns.push(args[++i]);
-    } else if (args[i] === '--force') {
+    } else if (arg === '--except') {
+      const value = args[++i];
+      if (value === undefined) die('--except wants a glob.');
+      exceptPatterns.push(value);
+    } else if (arg === '--force') {
       force = true;
-    } else if (!args[i].startsWith('--')) {
-      const range = parseLineRange(args[i]);
+    } else if (arg.startsWith('--')) {
+      die(`unknown flag "${arg}".`);
+    } else {
+      const range = parseLineRange(arg);
       if (range) {
         rangedSpecs.push(range);
       } else {
-        pathArgs.push(args[i]);
+        pathArgs.push(arg);
       }
     }
   }
@@ -187,9 +201,7 @@ function main() {
   const { pathArgs, rangedSpecs, extList, exceptPatterns, force } = parseArgs();
 
   if (pathArgs.length === 0 && rangedSpecs.length === 0) {
-    process.stderr.write(
-      'Usage: util fs merge [--ext ts,tsx] [--except pattern] [--force] <path1[:N-M]> [path2] ... [-- note]\n'
-    );
+    process.stderr.write(`usage: ${USAGE}\n`);
     process.exit(1);
   }
 

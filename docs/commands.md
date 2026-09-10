@@ -11,6 +11,8 @@ What this repository ships. `util ls` prints the same list off the disk, and `--
 
 ## Every command
 
+Every command prints its own file header for `--help`, and refuses a flag it cannot use rather than running with that flag ignored.
+
 **`claude`**
 
 - **`proxy`**: log what Claude Code actually sends the model.

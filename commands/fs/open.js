@@ -26,7 +26,6 @@
  *                  caller that has already put the document on screen, which
  *                  is what `flow get --files` does with a ticket.
  *
- * Was Flow's own `flow-open` block until 2026-09-09, parsed inside `flow get`.
  * It is not a ticket format: any document can carry one.
  */
 
