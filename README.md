@@ -35,6 +35,10 @@ u ...                              second name on PATH, same program
 
 **A word naming no namespace is looked up across all of them.** It resolves when exactly one command has that name, so `util tree` finds `fs tree`. The day a second `tree` exists anywhere, the short form stops guessing and prints both full names.
 
+**A word matching nothing names the closest one that exists.** `util unistall` answers `did you mean "uninstall"?`. The distance is single character edits, with two neighbours swapped counting as one, so `util gti save` finds `git`. A namespace and its alias count as one candidate. Anything else sitting equally close to two names suggests neither, because a wrong guess sends you looking in the wrong place.
+
+`util source drpo <path>` is answered the same way. Everything `util` names itself is covered: the built-in words, the namespaces, the aliases, and every command in every registered source, a project's own `.util/` included.
+
 **Everything after the command name passes through untouched.** `util` dispatches to programs it did not write, so it never reads their flags. `util git save --help` is that command's own help, printed by that command.
 
 Five words `util` answers itself, so no namespace can be called one of them:
@@ -60,15 +64,17 @@ node ~/code/util/util.js install
 
 `install` links `util` and `u` in `~/.local/bin`, both pointing at `util.js`, and it registers this repository's `commands/` as a source. Every later run is `util install`.
 
-**`~/.local/bin` has to be on your `PATH`.** Most systems put it there already. Where yours has not, this line in `~/.bashrc` or `~/.zshrc` does it:
+**`install` checks `PATH` and prints only the step you still need.** Where `~/.local/bin` is already on it, that is the whole install and the command says so. Where it is not, the line to add comes with it, written into the file `$SHELL` names:
 
 ```bash
-export PATH="$HOME/.local/bin:$PATH"
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ```
 
-`command -v util` says whether your shell can see the link yet, and `util ls` prints every command this repository ships. That is the whole install.
+**It never writes that file itself.** A shell config is yours, `uninstall` could not honestly take back a line it had appended, and which file to write is a guess for any shell but bash and zsh.
 
-**A shell that was already open can miss it.** Bash remembers where it found a command, so a terminal that ran an older `util` keeps pointing at the old path. `hash -r` clears that, and a new terminal never has it.
+**A shell that was already open can miss the new link.** Bash remembers where it found a command, so a terminal that ran an older `util` keeps pointing at the old path. `hash -r` clears that, and a new terminal never has it.
+
+`util ls` then prints every command this repository ships.
 
 Nothing is copied. An edit in the clone is live the moment you save it, and a command added to `commands/` needs no re-run at all. Re-run it when the clone moves.
 

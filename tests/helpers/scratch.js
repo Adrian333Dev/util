@@ -48,7 +48,7 @@ function write(dir, relative, body) {
  * throwing: a refusal is the thing under test as often as the output is.
  */
 function util(home, args, options = {}) {
-  const { cwd = ROOT, project, bin } = options;
+  const { cwd = ROOT, project, bin, env: extra } = options;
   // Always set, even where a test wants no project source: unset, `util` asks
   // git where it is and finds this repository, so a `.util/` here would leak
   // into every test that never asked for one.
@@ -62,6 +62,9 @@ function util(home, args, options = {}) {
     UTIL_HOME: home,
     UTIL_PROJECT: project || none,
     UTIL_BIN: bin || path.join(SCRATCH, 'no-bin'),
+    // Last, so a test can hand `util` a PATH of its own. Node is spawned by
+    // absolute path, so emptying PATH breaks nothing about running the suite.
+    ...extra,
   };
   const result = spawnSync(process.execPath, [path.join(ROOT, 'util.js'), ...args], {
     cwd,

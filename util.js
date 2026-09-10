@@ -31,6 +31,7 @@ const { spawnSync } = require('child_process');
 const { UtilError } = require('./lib/error');
 const catalogue = require('./lib/catalog');
 const render = require('./lib/render');
+const { nearest } = require('./lib/suggest');
 const ls = require('./builtin/ls');
 const install = require('./builtin/install');
 const uninstall = require('./builtin/uninstall');
@@ -108,6 +109,18 @@ function runGroup(name, group, argv) {
   }
 
   const actions = Object.keys(group.actions);
+  // A near miss is refused before the fallback, or `util source drpo <path>`
+  // reads as an argument to the default action and complains about the wrong
+  // command entirely.
+  const near = actions.includes(typed) ? null : nearest(typed, actions);
+  if (near) {
+    throw new UtilError(
+      `unknown ${name} action "${typed}".\n` +
+      `  did you mean "${near}"?\n` +
+      `  one of: ${actions.join(', ')}`
+    );
+  }
+
   const chosen = actions.includes(typed) ? typed : group.default;
   const rest = actions.includes(typed) ? args : argv;
   if (!chosen) {
@@ -171,8 +184,15 @@ function dispatch(argv) {
     }
     const command = catalogue.resolveCommand(catalog, ns.name, typed);
     if (command) return execute(command, args);
+    // Every source's commands, not this namespace object's: a second source
+    // adding to the same namespace has its own, and a typo can be aimed at one.
+    const here = [...catalog.byFull.keys()]
+      .filter((key) => key.startsWith(`${ns.name}/`))
+      .map((key) => key.slice(ns.name.length + 1));
+    const near = nearest(typed, here);
     throw new UtilError(
       `${ns.name} has no command "${typed}".\n` +
+      (near ? `  did you mean "${near}"?\n` : '') +
       `  util ${ns.name} lists what it does have.`
     );
   }
@@ -181,8 +201,15 @@ function dispatch(argv) {
   if (short) return execute(short, rest);
 
   const known = [...catalog.namespaces.keys()].sort();
+  // An alias and its namespace are one candidate, so `gti` answers `git`
+  // rather than calling git, g and gh a three-way tie.
+  const namespaceOf = new Map([...catalog.namespaces].map(([key, ns]) => [key, ns.name]));
+  const near = nearest(first, [
+    ...Object.keys(BUILTIN), ...Object.keys(GROUPS), ...known, ...catalog.byName.keys(),
+  ], (name) => namespaceOf.get(name) || name);
   throw new UtilError(
     `"${first}" is neither a namespace nor a command.\n` +
+    (near ? `  did you mean "${near}"?\n` : '') +
     (known.length
       ? `  namespaces: ${known.join(', ')}\n  util ls prints every command.`
       : '  No sources registered. Add one with util source add <path>.')

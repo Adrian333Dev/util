@@ -375,3 +375,54 @@ test('uninstall keeps a real file and another clone\'s link, and names both', ()
   assert.strictEqual(fs.readlinkSync(path.join(bin, 'util')), other);
   assert.match(result.stdout, /source dropped/, 'the registry line is still this clone\'s to remove');
 });
+
+test('install reports PATH as it finds it, and never warns about a directory already on it', () => {
+  const dir = scratch('install-path');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+
+  const missing = util(home, ['install'], { bin, env: { PATH: '/usr/bin' } });
+  assert.strictEqual(missing.code, 0, missing.stderr);
+  assert.match(missing.stdout, /is not on your PATH/);
+  assert.match(missing.stdout, /export PATH=/, 'and the line to fix it');
+
+  const found = util(home, ['install'], { bin, env: { PATH: `${bin}:/usr/bin` } });
+  assert.strictEqual(found.code, 0, found.stderr);
+  assert.match(found.stdout, /is on your PATH/);
+  assert.doesNotMatch(found.stdout, /export PATH=/, 'nothing to fix, so nothing to paste');
+  assert.match(found.stdout, /hash -r/, 'the one step a shell already open still needs');
+});
+
+test('a word one typo away from a real name suggests that name', () => {
+  const { source, run } = setup('suggest');
+  command(source, 'git/save.sh');
+
+  const builtin = run(['unistall']);
+  assert.notStrictEqual(builtin.code, 0);
+  assert.match(builtin.stderr, /did you mean "uninstall"\?/);
+
+  const inNamespace = run(['git', 'svae']);
+  assert.notStrictEqual(inNamespace.code, 0);
+  assert.match(inNamespace.stderr, /did you mean "save"\?/);
+
+  const nothing = run(['xyzzy']);
+  assert.notStrictEqual(nothing.code, 0);
+  assert.doesNotMatch(nothing.stderr, /did you mean/, 'a guess at nothing is worse than none');
+
+  const action = run(['source', 'drpo', '/tmp']);
+  assert.notStrictEqual(action.code, 0);
+  assert.match(action.stderr, /unknown source action "drpo"/, 'not an argument to the default action');
+  assert.match(action.stderr, /did you mean "drop"\?/);
+});
+
+test('two letters swapped is one typo, and an alias never ties with its own namespace', () => {
+  const { source, run } = setup('suggest-swap');
+  command(source, 'git/save.sh');
+  write(source, path.join('git', '.info'), 'alias: g\n');
+
+  // git, g and gh are all two plain edits from gti. A swap counts as one, so
+  // git wins outright, and g would answer as git anyway.
+  const swapped = run(['gti', 'save']);
+  assert.notStrictEqual(swapped.code, 0);
+  assert.match(swapped.stderr, /did you mean "git"\?/);
+});

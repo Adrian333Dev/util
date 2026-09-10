@@ -61,6 +61,34 @@ function refuseReal(to) {
   }
 }
 
+/** Is the link directory one the shell actually searches? */
+function onPath(dir) {
+  return (process.env.PATH || '')
+    .split(path.delimiter)
+    .filter(Boolean)
+    .some((entry) => sources.expand(entry) === dir);
+}
+
+/** The directory written the way a shell config writes it, so the line pastes. */
+function forShell(dir) {
+  const short = sources.shorten(dir);
+  return short.startsWith('~/') ? `$HOME/${short.slice(2)}` : dir;
+}
+
+/**
+ * The file that shell reads at startup, or null.
+ *
+ * Named from `$SHELL`, and only for the two this can be sure of. Appending to
+ * the wrong file leaves you with a line that never runs and no idea why, so
+ * where the shell is unknown the message says what to do instead of where.
+ */
+function startupFile() {
+  const shell = path.basename(process.env.SHELL || '');
+  if (shell === 'zsh') return '~/.zshrc';
+  if (shell === 'bash') return '~/.bashrc';
+  return null;
+}
+
 module.exports = {
   // Read by `uninstall`, so the two names are written down once.
   NAMES,
@@ -90,14 +118,19 @@ module.exports = {
     done.push(`${isNew ? 'source added' : 'source already registered'}: ${sources.shorten(added)}`);
 
     out(done.join('\n'));
-    // The step that bites: a shell open before this ran can hold `util` as a
-    // path that no longer exists, and a shell that never had it needs nothing.
-    out(
-      `\n${sources.shorten(bin)} has to be on your PATH, and then both names work anywhere.\n\n` +
-      '  command -v util   says whether this shell can see the link yet\n' +
-      '  hash -r           clears a path the shell remembered from before\n\n' +
-      'util ls prints every command, this repository\'s included.'
-    );
+    // Only the step that is actually missing. Warning about PATH on a machine
+    // that has it right is how a finished install reads like a failed one.
+    const shown = sources.shorten(bin);
+    const rc = startupFile();
+    out('\n' + (onPath(bin)
+      ? `${shown} is on your PATH, so util and u work in any new shell.\n` +
+        '  hash -r   if this shell still says command not found\n\n' +
+        'util ls prints every command, this repository\'s included.'
+      : `${shown} is not on your PATH, so neither name resolves yet.\n` +
+        (rc
+          ? `  echo 'export PATH="${forShell(bin)}:$PATH"' >> ${rc}\n`
+          : `  put ${shown} on PATH in whatever your shell reads at startup\n`) +
+        '  open a new shell, and util ls prints every command'));
     return 0;
   },
 };
