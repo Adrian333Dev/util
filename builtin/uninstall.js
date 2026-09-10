@@ -93,11 +93,13 @@ module.exports = {
 
     out([...removed, ...kept].join('\n'));
 
-    const left = sources.registered().length;
-    const registry = sources.shorten(sources.registryFile());
-    out('\n' + (left
-      ? `${left === 1 ? '1 other source stays' : `${left} other sources stay`} registered in ${registry}.`
-      : `${registry} is empty now. It stays, and so does the clone.`));
+    // What is left registered is the registry's ordinary state, not something
+    // this command did, so it goes unsaid. Empty is the exception: it is the
+    // one moment the registry and the clone look deleted too.
+    if (!sources.registered().length) {
+      const registry = sources.shorten(sources.registryFile());
+      out(`\n${registry} is empty now. It stays, and so does the clone.`);
+    }
     return 0;
   },
 };

@@ -61,6 +61,24 @@ function refuseReal(to) {
   }
 }
 
+/**
+ * Is this name already the link `install` would write?
+ *
+ * `readlink` rather than `realpath`, matching `uninstall`: a link into a clone
+ * somebody has deleted is one to replace, and `realpath` throws on it.
+ */
+function pointsHere(to, entry) {
+  let existing;
+  try {
+    existing = fs.lstatSync(to);
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+    return false;
+  }
+  if (!existing.isSymbolicLink()) return false;
+  return path.resolve(path.dirname(to), fs.readlinkSync(to)) === entry;
+}
+
 /** Is the link directory one the shell actually searches? */
 function onPath(dir) {
   return (process.env.PATH || '')
@@ -104,11 +122,18 @@ module.exports = {
     // the machine exactly as it was rather than half installed.
     targets.forEach(refuseReal);
 
+    // Each line says what happened to that name, so a re-run of a finished
+    // install reads as three "already" lines rather than as work being redone.
     fs.mkdirSync(bin, { recursive: true });
     for (const to of targets) {
+      const shown = path.join(sources.shorten(bin), path.basename(to));
+      if (pointsHere(to, entry)) {
+        done.push(`already linked: ${shown}`);
+        continue;
+      }
       fs.rmSync(to, { force: true });
       fs.symlinkSync(entry, to);
-      done.push(`linked: ${path.join(sources.shorten(bin), path.basename(to))}`);
+      done.push(`linked: ${shown}`);
     }
 
     // Registered like any other source, on the same terms. Nothing about this
@@ -118,19 +143,22 @@ module.exports = {
     done.push(`${isNew ? 'source added' : 'source already registered'}: ${sources.shorten(added)}`);
 
     out(done.join('\n'));
-    // Only the step that is actually missing. Warning about PATH on a machine
-    // that has it right is how a finished install reads like a failed one.
-    const shown = sources.shorten(bin);
+
+    // A check that passes says nothing. There is no step left to take, and
+    // announcing PATH on a machine that has it right is how a finished install
+    // reads like a failed one. The shell that was already open is the README's,
+    // because it is a symptom most runs never produce.
+    if (onPath(bin)) return 0;
+
+    const dir = sources.shorten(bin);
     const rc = startupFile();
-    out('\n' + (onPath(bin)
-      ? `${shown} is on your PATH, so util and u work in any new shell.\n` +
-        '  hash -r   if this shell still says command not found\n\n' +
-        'util ls prints every command, this repository\'s included.'
-      : `${shown} is not on your PATH, so neither name resolves yet.\n` +
-        (rc
-          ? `  echo 'export PATH="${forShell(bin)}:$PATH"' >> ${rc}\n`
-          : `  put ${shown} on PATH in whatever your shell reads at startup\n`) +
-        '  open a new shell, and util ls prints every command'));
+    out(
+      `\n${dir} is not on your PATH, so neither name resolves yet.\n` +
+      (rc
+        ? `  echo 'export PATH="${forShell(bin)}:$PATH"' >> ${rc}\n`
+        : `  put ${dir} on PATH in whatever your shell reads at startup\n`) +
+      '  open a new shell, and util ls prints every command'
+    );
     return 0;
   },
 };

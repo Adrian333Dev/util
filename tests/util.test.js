@@ -10,8 +10,22 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { RESERVED } = require('../lib/catalog');
 const { ROOT, scratch, command, write, util } = require('./helpers/scratch');
+
+/**
+ * A path the way `util` prints it, and the way a shell config takes it.
+ *
+ * Written out here rather than imported from `lib/sources`: an expectation the
+ * code under test computed for itself cannot catch that code being wrong.
+ */
+const HOME_DIR = os.homedir();
+const shown = (p) => (p === HOME_DIR || p.startsWith(HOME_DIR + path.sep)
+  ? '~' + p.slice(HOME_DIR.length)
+  : p);
+const forShell = (p) => (shown(p).startsWith('~/') ? `$HOME/${shown(p).slice(2)}` : p);
 
 /** A home, a source folder registered in it, and `util` bound to both. */
 function setup(name) {
@@ -260,6 +274,9 @@ test('install runs twice with the same result', () => {
   const again = util(home, ['install'], { bin });
   assert.strictEqual(again.code, 0, again.stderr);
   assert.match(again.stdout, /source already registered/);
+  assert.doesNotMatch(again.stdout, /^linked:/m,
+    'a name already pointing at this clone reads as already linked, not as work redone');
+  assert.strictEqual(again.stdout.match(/^already linked:/gm).length, 2, 'both names');
 
   const registry = fs.readFileSync(path.join(home, 'sources'), 'utf8');
   assert.strictEqual(registry.trim().split('\n').length, 1, 'the source is registered once');
@@ -328,7 +345,8 @@ test('uninstall leaves every source it did not add', () => {
   const result = util(home, ['uninstall'], { bin });
 
   assert.strictEqual(result.code, 0, result.stderr);
-  assert.match(result.stdout, /1 other source stays registered/);
+  assert.doesNotMatch(result.stdout, /registered in/,
+    'what stays in the registry is its ordinary state, not something uninstall did');
   const registry = fs.readFileSync(path.join(home, 'sources'), 'utf8');
   assert.strictEqual(registry.trim().split('\n').length, 1, 'one line, and it is not this clone\'s');
   assert.match(registry, /private$/m);
@@ -376,7 +394,7 @@ test('uninstall keeps a real file and another clone\'s link, and names both', ()
   assert.match(result.stdout, /source dropped/, 'the registry line is still this clone\'s to remove');
 });
 
-test('install reports PATH as it finds it, and never warns about a directory already on it', () => {
+test('install names the PATH step only where it is missing', () => {
   const dir = scratch('install-path');
   const home = path.join(dir, 'home');
   const bin = path.join(dir, 'bin');
@@ -388,9 +406,9 @@ test('install reports PATH as it finds it, and never warns about a directory alr
 
   const found = util(home, ['install'], { bin, env: { PATH: `${bin}:/usr/bin` } });
   assert.strictEqual(found.code, 0, found.stderr);
-  assert.match(found.stdout, /is on your PATH/);
-  assert.doesNotMatch(found.stdout, /export PATH=/, 'nothing to fix, so nothing to paste');
-  assert.match(found.stdout, /hash -r/, 'the one step a shell already open still needs');
+  assert.doesNotMatch(found.stdout, /PATH/, 'a check that passes has no step attached, so it says nothing');
+  assert.strictEqual(found.stdout.trim().split('\n').length, 3,
+    'two names and one source: every line is something that changed');
 });
 
 test('a word one typo away from a real name suggests that name', () => {
@@ -425,4 +443,102 @@ test('two letters swapped is one typo, and an alias never ties with its own name
   const swapped = run(['gti', 'save']);
   assert.notStrictEqual(swapped.code, 0);
   assert.match(swapped.stderr, /did you mean "git"\?/);
+});
+
+// The commands below exist to print, so their output is the product rather
+// than a side effect of it. Each assertion here takes the whole of stdout.
+// One regex per test is what let `install` report `linked:` for a name it had
+// not touched: the line was never read, because no assertion covered it.
+
+test('install prints exactly what it changed, and a re-run exactly what it did not', () => {
+  const dir = scratch('install-exact');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+  const env = { PATH: `${bin}:/usr/bin` };
+  const commands = shown(path.join(ROOT, 'commands'));
+
+  const first = util(home, ['install'], { bin, env });
+  assert.strictEqual(first.stderr, '');
+  assert.strictEqual(first.stdout,
+    `linked: ${shown(path.join(bin, 'util'))}\n` +
+    `linked: ${shown(path.join(bin, 'u'))}\n` +
+    `source added: ${commands}\n`,
+    'a directory already on PATH leaves no step to take, so nothing is said about it');
+
+  const again = util(home, ['install'], { bin, env });
+  assert.strictEqual(again.stdout,
+    `already linked: ${shown(path.join(bin, 'util'))}\n` +
+    `already linked: ${shown(path.join(bin, 'u'))}\n` +
+    `source already registered: ${commands}\n`,
+    'a second run reports nothing done, because it did nothing');
+});
+
+test('install off PATH prints exactly the step that is left', () => {
+  const dir = scratch('install-exact-path');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+
+  const result = util(home, ['install'], { bin, env: { PATH: '/usr/bin', SHELL: '/bin/bash' } });
+  assert.strictEqual(result.stdout,
+    `linked: ${shown(path.join(bin, 'util'))}\n` +
+    `linked: ${shown(path.join(bin, 'u'))}\n` +
+    `source added: ${shown(path.join(ROOT, 'commands'))}\n` +
+    '\n' +
+    `${shown(bin)} is not on your PATH, so neither name resolves yet.\n` +
+    `  echo 'export PATH="${forShell(bin)}:$PATH"' >> ~/.bashrc\n` +
+    '  open a new shell, and util ls prints every command\n');
+});
+
+test('uninstall prints exactly what it removed, and names the registry only when it empties', () => {
+  const dir = scratch('uninstall-exact');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+  const other = path.join(dir, 'private');
+  command(other, path.join('git', 'mine'));
+
+  const gone =
+    `unlinked: ${shown(path.join(bin, 'util'))}\n` +
+    `unlinked: ${shown(path.join(bin, 'u'))}\n` +
+    `source dropped: ${shown(path.join(ROOT, 'commands'))}\n`;
+
+  util(home, ['install'], { bin });
+  util(home, ['source', 'add', other]);
+  assert.strictEqual(util(home, ['uninstall'], { bin }).stdout, gone,
+    'a source left registered is the registry as it always was, not something uninstall did');
+
+  util(home, ['source', 'drop', other]);
+  util(home, ['install'], { bin });
+  assert.strictEqual(util(home, ['uninstall'], { bin }).stdout,
+    gone + '\n' +
+    `${shown(path.join(home, 'sources'))} is empty now. It stays, and so does the clone.\n`,
+    'an empty registry is the one moment the clone looks deleted too');
+});
+
+test('the listing prints exactly this', () => {
+  const { source, run } = setup('listing-exact');
+  write(source, path.join('git', '.info'), 'alias: g\n\nsaving work\n');
+  command(source, path.join('git', 'save.sh'), '#!/usr/bin/env bash\n# description: commit and push\n');
+  command(source, path.join('fs', 'tree.sh'), '#!/usr/bin/env bash\n# description: print a tree\n');
+
+  assert.strictEqual(run(['ls']).stdout,
+    '  fs\n' +
+    '    tree                print a tree\n' +
+    '\n' +
+    '  git · g             saving work\n' +
+    '    save                commit and push\n',
+    'one source needs no header, and a namespace with no .info needs no description');
+});
+
+test('help carries a row for every word util answers itself, and closes on the listing', () => {
+  const { source, run } = setup('help-exact');
+  command(source, path.join('git', 'save.sh'), '#!/usr/bin/env bash\n# description: commit and push\n');
+
+  const help = run(['help']).stdout;
+  for (const word of RESERVED) {
+    // `help` is how you got here, so it lists no row for itself.
+    if (word === 'help') continue;
+    assert.match(help, new RegExp(`^  util ${word}\\b`, 'm'), `util help has a row for ${word}`);
+  }
+  assert.ok(help.endsWith(run(['ls']).stdout),
+    'the listing under help is the one util ls prints, never a second rendering of it');
 });
