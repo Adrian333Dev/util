@@ -1,20 +1,22 @@
 #!/usr/bin/env node
-// description: build a symlink, refusing to replace a real file
+// description: make a symlink, refusing to replace a real file
 //
-// Usage: util fs link <source> <target>
-//        util fs link <source>... <directory>
+// util fs link: make a symlink, the way `ln -s` does.
 //
-//   --force   replace the target even when it is a real file or folder
+//   util fs link <source> <target>       one link, at the name you give
+//   util fs link <source>... <folder>    one link per source, inside a folder
+//   --force                              replace the target even when it is a
+//                                        real file or folder
 //
-// The target is an absolute path built from where you are standing, so a
-// relative source keeps working after the link is made. Naming a directory as
-// the last argument puts one link inside it per source, each keeping its own
-// basename, the shape `ln -s` uses and the one wanted when linking a folder
-// of scripts into ~/.local/bin.
+// Both paths are turned into full paths from where you are standing, so a
+// link made from a relative path keeps working. Naming a folder last puts one
+// link inside it per source, each keeping its own file name, which is what
+// linking a folder of scripts into ~/.local/bin needs.
 //
-// An existing symlink is replaced without asking: pointing a link somewhere new
-// is the whole job, and re-running has to be safe. A real file is somebody
-// else's and refuses, because a wrong argument here silently destroys work.
+// An existing symlink is replaced without asking, because pointing a link
+// somewhere new is the whole job and re-running has to be safe. A real file at
+// the target stops the command instead: a wrong argument here would destroy
+// somebody's work without a word about it.
 
 const fs = require('fs');
 const path = require('path');

@@ -1,10 +1,15 @@
 #!/usr/bin/env node
 /**
- * description: one document and every file it names, as one stream
+ * description: print a document, then every file its open block lists
  *
- * Print a document, then print every file its fenced `open` block names. One
- * command replaces reading the document and then chasing what it points at.
- * The document comes first, whole, and the files follow in block order.
+ * util fs open: print a document, then every file it points at.
+ *
+ *   util fs open docs/notes.md                the document, then its files
+ *   util fs open docs/notes.md --files-only   only the files
+ *
+ * The document names those files itself, in a code block marked `open`. One
+ * command then replaces reading the document and chasing what it points at.
+ * The document comes first, whole, and the files follow in the order listed.
  *
  * ```open
  * plan.md
@@ -16,23 +21,21 @@
  * working directory, so a document can name its neighbours by bare filename
  * and everything else from the repository root.
  *
- * `util fs merge` does the printing, so the fences, the path labels and the
- * `:N-M` ranges are its output, not a second format.
+ * `util fs merge` does the printing, so the code blocks, the path labels and
+ * the `:N-M` ranges are its work, not a second format invented here.
  *
- * Usage: util fs open [--files-only] <file>
+ * --files-only leaves the document out and prints only the files, for a
+ * caller that has the document on screen already.
  *
- * Options:
- *   --files-only   Skip the document, print only what its block names. For a
- *                  caller that has already put the document on screen, which
- *                  is what `flow get --files` does with a ticket.
- *
- * It is not a ticket format: any document can carry one.
+ * Any document can carry an open block. It is not a format for one kind of
+ * file.
  */
 
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
+const ME = 'util fs open';
 const MERGE = path.join(__dirname, 'merge.js');
 const BLOCK_START = /^```open\s*$/;
 const BLOCK_END = /^```\s*$/;
@@ -90,13 +93,13 @@ function main() {
   const filesOnly = argv.includes('--files-only');
   const [target] = argv.filter((a) => !a.startsWith('--'));
   if (!target) {
-    process.stderr.write('Usage: util fs open [--files-only] <file>\n');
+    process.stderr.write(`${ME}: name the document to print.\n  usage: ${ME} [--files-only] <file>\n`);
     process.exit(1);
   }
 
   const abs = path.resolve(process.cwd(), target);
   if (!fs.existsSync(abs)) {
-    process.stderr.write(`No file at ${target}\n`);
+    process.stderr.write(`${ME}: there is nothing at ${target}\n`);
     process.exit(1);
   }
 

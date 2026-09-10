@@ -1,15 +1,14 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * util: the commands you type that have nothing to do with each other.
+ * util: one name for all the small commands you write for yourself.
  *
  * A dispatcher, not a monolith. Nothing is built into this program: it reads a
  * registry of source directories, builds one namespace out of everything it
  * finds, and runs the file you named. The `commands/` folder beside this file
  * is one of those directories, registered like any other. A source is any
- * directory laid out
- * `<namespace>/<command>`, so a command is an executable in any language and
- * `util` never sees its arguments.
+ * directory laid out `<namespace>/<command>`, so a command is an executable in
+ * any language and `util` never sees its arguments.
  *
  * That last part is what separates this from a program with subcommands. Such
  * a program declares every flag it accepts and refuses an undeclared one.
@@ -55,30 +54,30 @@ const HELP_WIDTH = 24;
 const BUILTIN = { ls, install, uninstall };
 const GROUPS = { source };
 
-const TITLE = 'util: general-purpose commands, joined from every registered source';
+const TITLE = 'util: one name for all the small commands you write for yourself';
 
-const NOTES = `shape    util <namespace> <command> [args]. A word naming no namespace is
-         looked up across all of them and resolves when exactly one command
-         has it, so util tree finds fs tree until a second tree exists
-names    a namespace spells out what the old prefixes carried: gsave was git
-         save, fmerge was file merge. One appears when the second command
-         needs it, and may declare a short alias in its own .info
+const NOTES = `shape    util <namespace> <command> [args]. A word that names no namespace is
+         looked up in all of them, and runs when exactly one command has that
+         name, so util tree finds fs tree until a second tree exists
+groups   a namespace is a folder of commands that belong together, like git
+         or fs. It can give itself a short alias in its own .info file, which
+         is how util g save works
 sources  ~/.util/sources, one path per line, # for a comment. Every directory
-         named there contributes what it holds, so a public repository, a
-         private one and one project share a namespace without either knowing
-         about the other. A project's own .util/ is picked up from the working
-         directory and never written to the registry
+         named there adds the commands it holds, so a public repository, a
+         private one and a single project can all add commands without
+         knowing about each other. A project's own .util/ folder is picked up
+         from the working directory and never written to the registry
 adding   write an executable at <source>/<namespace>/<command> and it exists.
          The filename is the command name with any extension dropped, so
-         git/save.sh is util git save. Promotion is a move: mv the file from
-         a project's .util/ into the repository that should carry it
-args     everything after the command name goes to the command untouched, so
+         git/save.sh is util git save. To publish a command, move the file:
+         mv it from a project's .util/ into the repository that should have it
+args     everything after the command name reaches the command untouched, so
          util git save --help is that command's own help
-descr    a command describes itself with a description: line in a comment in
-         its first 50 lines, and a folder describes itself in a .info. Both
-         are index entries, one line each, never the file's documentation
-clash    two sources claiming one namespace/command refuse and name both
-         files. Nothing is shadowed silently`;
+listing  a command describes itself with a description: line in a comment in
+         its first 50 lines, and a folder describes itself in a .info file.
+         Both are one-line index entries, never the file's documentation
+clash    two sources claiming one namespace/command both refuse to run, and
+         name both files. Nothing is ever hidden silently`;
 
 function help() {
   const lines = [TITLE, ''];

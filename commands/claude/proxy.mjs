@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * description: log what Claude Code actually sends the model
+ * description: record every request Claude Code sends to the model
  *
- * util claude proxy: see the bloat in Claude Code's requests.
+ * util claude proxy: record every request Claude Code sends to the model.
  *
  *   util claude proxy                     listen on 8787, write ./logs/
  *   PORT=9000 util claude proxy           listen somewhere else
@@ -13,22 +13,22 @@
  *
  *   ANTHROPIC_BASE_URL=http://localhost:8787 claude
  *
- * A zero-dependency logging proxy. It sits between the CLI and the Anthropic
- * API, forwards every request untouched (auth header and all), streams the
- * response straight back so the CLI is unaffected, and for each request writes
- * a readable Markdown document: led by a ranked table of what is eating your
- * context. Node built-ins only, Node 18+.
+ * It sits between the CLI and the Anthropic API, passes every request through
+ * untouched, the auth header included, and streams the reply straight back, so
+ * Claude Code behaves exactly as it always does. Every request is written down
+ * as a Markdown document, and each document opens with a table ranking what
+ * took up the most room in that request. Node 18 or newer, no dependencies.
  *
  * Two things to know before you trust a number it prints:
  *
- *   Tool search goes off while you are measuring. Claude Code normally holds
- *   tool definitions back and loads them when a task needs one. It stops doing
+ *   Tool search switches off while you measure. Claude Code normally holds its
+ *   tool definitions back and loads one when a task needs it. It stops doing
  *   that when ANTHROPIC_BASE_URL points anywhere but Anthropic's own API,
- *   because most proxies drop the blocks on-demand loading depends on, so every
- *   definition loads up front instead. The context you measure through this is
- *   therefore larger than the same session run without it.
- *   ENABLE_TOOL_SEARCH=true turns it back on, and that override survives a
- *   proxy which forwards the request body unmodified, as this one does.
+ *   because most proxies drop the parts of a request that loading on demand
+ *   needs, so every definition loads up front instead. A session measured
+ *   through this proxy therefore carries more context than the same session
+ *   without it. ENABLE_TOOL_SEARCH=true turns it back on, and it works through
+ *   any proxy that passes the request body through unchanged, as this one does.
  *
  *   Prompt caching is cold at first. Pointing the CLI somewhere new starts a
  *   fresh cache, so the opening requests bill as full writes and usage climbs
@@ -38,8 +38,9 @@
  *   https://gist.github.com/mattpocock/5b3d76ea21f5f698aefded47a9cea3b1
  * The configurable upstream came from r1cc4rd0m4zz4's fork of that gist:
  *   https://gist.github.com/r1cc4rd0m4zz4/42c1a6a81874a5e59292d76192bfa1d2
- * Both are unmodified in what they do. This copy adds the header you are
- * reading, and writes its documents beside you rather than beside itself.
+ * Neither one's behavior was changed here. This copy adds the header you are
+ * reading, and writes its documents into the folder you ran it from rather
+ * than into the clone.
  */
 
 import http from "node:http";

@@ -51,7 +51,7 @@ function linkState(to, entry) {
 }
 
 module.exports = {
-  summary: 'remove both names from PATH, and unregister this repository',
+  summary: 'remove util and u from PATH, and unregister this repository',
   run({ positional, usage, out }) {
     const bin = binDir(positional, usage);
     const clone = cloneRoot();
@@ -98,7 +98,7 @@ module.exports = {
     // one moment the registry and the clone look deleted too.
     if (!sources.registered().length) {
       const registry = sources.shorten(sources.registryFile());
-      out(`\n${registry} is empty now. It stays, and so does the clone.`);
+      out(`\n${registry} is empty now. The file stays, and so does the clone.`);
     }
     return 0;
   },

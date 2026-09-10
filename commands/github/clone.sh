@@ -1,23 +1,34 @@
 #!/usr/bin/env bash
-# description: clone one or more repos from any URL form
+# description: clone GitHub repositories, named by URL or by owner/repo
 #
-# Usage: util github clone <repo>... [--into <dir>]
+# util github clone: clone one or more repositories from GitHub.
 #
-#   <repo>        owner/repo, an https URL, a git@ remote, or a deep link into
-#                 a file or a branch, and all four reduce to the same slug
-#   --into <dir>  clone into this directory instead of the current one
+#   util github clone <repo>... [--into <dir>]
 #
-# A repo already on disk is reported and skipped, so re-running the same line
-# after adding one name to it costs nothing and clones only what is missing.
-# The exit status is non-zero when any clone failed, and the ones that worked
-# still stand.
+#   <repo>        owner/repo, an https URL, a git@ remote, or a link to a file
+#                 or a branch inside a repository. All four name the same
+#                 repository, so paste whatever you have
+#   --into <dir>  clone into this folder instead of the one you are in
+#
+# A repository already on disk is named and skipped, so adding one name to a
+# line you have run before clones only the one that is missing. The exit
+# status is non-zero when any clone failed, and the ones that worked stand.
 
 set -uo pipefail
 
 me="util github clone"
 
 usage() {
-  awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "${BASH_SOURCE[0]}"
+  awk 'NR == 1 { next }
+       /^#/ {
+         sub(/^# ?/, "")
+         if ($0 ~ /^description:/) next
+         if ($0 == "" && !seen) next
+         seen = 1
+         print
+         next
+       }
+       { exit }' "${BASH_SOURCE[0]}"
 }
 
 into="."

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * description: carry uncommitted work between two machines
+ * description: move the changes you have not committed to another machine
  *
- * util git work: the files you edited and never committed, moved.
+ * util git work: move the changes you have not committed to another machine.
  *
  *   util git work send            store this folder's uncommitted work, and push it
  *     -m, --message "<text>"      label the copy
@@ -14,22 +14,22 @@
  *   util git work drop [<machine>]  delete a stored copy, here and on the remote
  *     -a, --all                   every copy of this branch
  *
- * Committed work already travels through the remote. Work that is only edited,
- * or not added at all, has no route, so switching machines either loses it or
- * forces a junk commit. This gives it one.
+ * Committed work already travels through the remote. A file you have only
+ * edited, or never added, has no way to travel, so switching machines either
+ * loses that work or forces a junk commit. This command carries it across.
  *
- * The mechanism, in full: build a commit holding everything in the project
- * folder, hang it off the commit you are on, and write its name into a label
- * under refs/unfinished/: a place git never looks on its own. The label is not
+ * How it works: it builds a commit holding everything in the project folder,
+ * sets its parent to the commit you are on, and writes its name into a label
+ * under refs/unfinished/, a place git never looks on its own. The label is not
  * a branch, so it never shows up in `git branch`, nothing switches to it, and
  * committing does not move it. Push the label and the other machine can fetch
  * it. Nothing about the branch, the staging area or the files on disk changes
  * while a copy is made.
  *
  * One label per machine per branch, so two machines can never overwrite each
- * other. Only the newest copy is kept, which is what makes the push a forced
- * one: safe here because one machine writes each label and nothing reads it as
- * history.
+ * other. Only the newest copy is kept, so sending again overwrites the last
+ * one. That is safe here: one machine writes each label, and nothing reads a
+ * label as history.
  */
 
 /*

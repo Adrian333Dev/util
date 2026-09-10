@@ -1,26 +1,23 @@
 #!/usr/bin/env node
 /**
- * description: many files as one stream, each in a fenced block
+ * description: print many files as one text, each in a code block labelled with its path
  *
- * Merge files and folders into a single LLM-friendly output streamed to stdout.
+ * util fs merge: print many files as one text, ready to paste into a chat.
  *
- * Each file becomes a fenced code block labelled with its path, relative to
- * the directory the command ran in: ``` path/to/file
- * Consecutive blank lines are collapsed to one.
- * If total output exceeds 2000 lines, prints a warning with per-file line counts instead.
- * Pass --force to bypass the limit.
+ *   util fs merge src README.md            every file in a folder, and one file
+ *   util fs merge src/parser.js:45-89      only lines 45 to 89 of a file
+ *   util fs merge src --ext ts,tsx         only files with these extensions
+ *   util fs merge src --except "*.test.*"  leave out files matching a glob
+ *   util fs merge src --force              print even when it runs past the limit
  *
- * Usage: util fs merge [options] <path1> [path2] ...
+ * Each file arrives inside a code block labelled with its path, counted from
+ * the folder you ran the command in. Repeated blank lines collapse to one.
+ * --ext and --except can each be given more than once, and a `--` ends the
+ * paths, so anything you type after it is ignored.
  *
- * Options:
- *   --ext ts,tsx,md    Include only files with these extensions (comma-separated)
- *   --except pattern   Exclude files matching this glob (repeatable)
- *   --force            Output even if over the 2000-line limit
- *
- * Path syntax:
- *   file.md            Full file
- *   file.md:45-89      Lines 45-89 only (1-indexed, inclusive)
- *   src/               Folder (recursive)
+ * Past 2000 lines nothing is printed. What prints instead is the line count of
+ * each file, so you can see which one is large and name narrower paths.
+ * --force prints the lot anyway.
  */
 
 const fs = require('fs');
@@ -86,7 +83,7 @@ function collectFiles(pathArgs) {
   for (const arg of pathArgs) {
     const resolved = path.resolve(cwd, arg);
     if (!fs.existsSync(resolved)) {
-      process.stderr.write(`Warning: skipping missing path: ${arg}\n`);
+      process.stderr.write(`${ME}: skipping ${arg}, which does not exist\n`);
       continue;
     }
     const stat = fs.statSync(resolved);
@@ -221,7 +218,7 @@ function main() {
   for (const { filePath, start, end } of rangedSpecs) {
     const resolved = path.resolve(process.cwd(), filePath);
     if (!fs.existsSync(resolved)) {
-      process.stderr.write(`Warning: skipping missing path: ${filePath}\n`);
+      process.stderr.write(`${ME}: skipping ${filePath}, which does not exist\n`);
       continue;
     }
     const rel = path.relative(process.cwd(), resolved).replace(/\\/g, '/');
@@ -231,7 +228,7 @@ function main() {
   }
 
   if (entries.length === 0) {
-    process.stdout.write('No files matched after filtering.\n');
+    process.stdout.write(`${ME}: no file left to print.\n`);
     return;
   }
 
@@ -239,8 +236,9 @@ function main() {
 
   if (totalLines > LINE_LIMIT && !force) {
     const lines = [
-      `Output too large: ${totalLines} lines (limit ${LINE_LIMIT}). Use --force to output anyway.\n`,
-      'Files:',
+      `${ME}: ${totalLines} lines is past the ${LINE_LIMIT}-line limit, so nothing was printed.`,
+      '  Narrow the paths, or pass --force to print it anyway.\n',
+      'Lines per file:',
     ];
     for (const e of entries) {
       const lc = countLines(e.block);

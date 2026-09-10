@@ -510,7 +510,7 @@ test('uninstall prints exactly what it removed, and names the registry only when
   util(home, ['install'], { bin });
   assert.strictEqual(util(home, ['uninstall'], { bin }).stdout,
     gone + '\n' +
-    `${shown(path.join(home, 'sources'))} is empty now. It stays, and so does the clone.\n`,
+    `${shown(path.join(home, 'sources'))} is empty now. The file stays, and so does the clone.\n`,
     'an empty registry is the one moment the clone looks deleted too');
 });
 

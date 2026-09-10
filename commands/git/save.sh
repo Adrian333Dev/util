@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # description: add, commit and push in one step
 #
-# util git save: the three git commands that always run together.
+# util git save: stage everything, commit it and push, in one command.
 #
 #   util git save                     everything, generated message, push
 #   util git save "fix the parser"    everything, that message, push
@@ -9,8 +9,8 @@
 #   util git save -n                  commit, do not push
 #   util git save --dry-run           print the commands, run none of them
 #
-# That is the whole surface. This shortens `add && commit && push`; it is not a
-# replacement for git. Amend, revert, rebase, force: plain git commands.
+# That is all of it. This shortens `add && commit && push` and replaces nothing
+# else: amend, revert, rebase and force are plain git commands.
 
 set -euo pipefail
 
@@ -25,7 +25,14 @@ paths=()
 # that way so moving a line never silently truncates the help.
 usage() {
   awk 'NR == 1 { next }
-       /^#/ { sub(/^# ?/, ""); if ($0 !~ /^description:/) print; next }
+       /^#/ {
+         sub(/^# ?/, "")
+         if ($0 ~ /^description:/) next
+         if ($0 == "" && !seen) next
+         seen = 1
+         print
+         next
+       }
        { exit }' "$0"
 }
 

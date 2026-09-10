@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * description: a directory tree with the noise stripped out
+ * description: print a folder as a tree, hiding node_modules, .git and other build folders
  *
- * util fs tree: what a folder holds, without the folders nobody reads.
+ * util fs tree: print a folder and everything inside it as a tree.
  *
- *   util fs tree                    the tree here
- *   util fs tree docs               the tree under one path
+ *   util fs tree                    the folder you are in
+ *   util fs tree docs               a folder you name
  *   util fs tree --depth 2          stop after two levels
- *   util fs tree --except "*.md"    leave out a name, a folder name or a glob
+ *   util fs tree --except "*.md"    leave out a file name, a folder name or a glob
  *
- * --except is repeatable. Build output and version control are hidden already,
- * node_modules, .git, dist and coverage among them, so the flag is for what
- * this one folder needs gone.
+ * --except can be given more than once. node_modules, .git, dist, coverage and
+ * the other build folders are hidden already, so use the flag for whatever
+ * else this one folder needs gone.
  *
- * A file or folder that describes itself gets that line printed beside it,
- * aligned with its siblings: a description: comment in a file, a .info in a
- * folder. The same line util ls reads.
+ * A file or folder that describes itself has that description printed beside
+ * it, lined up with its neighbours: a `description:` comment in a file, a
+ * `.info` file in a folder. `util ls` prints the same line.
  */
 
 const fs = require('fs');
@@ -116,7 +116,7 @@ function walk(dir, prefix, depth) {
 }
 
 if (!fs.existsSync(target)) {
-  console.error(`${ME}: nothing at ${target}`);
+  console.error(`${ME}: there is nothing at ${target}`);
   process.exit(1);
 }
 

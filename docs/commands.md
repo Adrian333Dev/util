@@ -11,28 +11,28 @@ What this repository ships. `util ls` prints the same list off the disk, and `--
 
 ## Every command
 
-Every command prints its own file header for `--help`, and refuses a flag it cannot use rather than running with that flag ignored.
+Every command prints its own file header for `--help`, opening with one line saying what it does. Every command also refuses a flag it cannot use, rather than running on with that flag ignored.
 
 **`claude`**
 
-- **`proxy`**: log what Claude Code actually sends the model.
+- **`proxy`**: record every request Claude Code sends to the model.
 
 **`fs`**
 
-- **`tree <path>`**: a directory tree with the noise stripped out, each entry carrying its own `description:` line.
-- **`merge <path>...`**: many files as one stream, each in a fenced block under its path. `src/parser.js:40-120` takes a line range, `--ext` and `--except` filter, `--force` passes the 2000-line limit.
-- **`open <file>`**: one document and every file it names, as one stream.
-- **`link <target> <name>`**: build a symlink, refusing to replace a real file.
+- **`tree [path]`**: print a folder as a tree, hiding `node_modules`, `.git` and other build folders. Each entry carries its own `description:` line.
+- **`merge <path>...`**: print many files as one text, each in a code block labelled with its path. `src/parser.js:40-120` takes a line range, `--ext` and `--except` filter, `--force` prints past the 2000-line limit.
+- **`open <file>`**: print a document, then every file its `open` block lists.
+- **`link <source> <target>`**: make a symlink, refusing to replace a real file.
 
 **`git`**, aliased `g`
 
 - **`save`**: add, commit and push in one step.
-- **`work`**: carry uncommitted work between two machines.
+- **`work`**: move the changes you have not committed to another machine.
 
 **`github`**, aliased `gh`
 
-- **`clone <repo>...`**: clone one or more repositories from any URL form.
-- **`bookmark <repo>`**: append a repository's stars, language and pushed date to a file.
+- **`clone <repo>...`**: clone repositories from GitHub, named by URL or by `owner/repo`.
+- **`bookmark <repo>`**: add a repository's stars, language and last push date to a file.
 
 Three of them do something a one-line description cannot cover.
 
@@ -99,14 +99,14 @@ Three things that output shows:
 
 `util fs merge docs/notes.md docs/plan.md src/parser.js:2-4` prints the same thing. The block is that command line, saved inside the document instead of typed out on every run.
 
-Handoffs, specs, design notes and tickets are what this is for. Somebody arrives at one cold and opens four other files before it means anything. The block is those four files, named by whoever already knew which they were.
+Handoffs, specs, design notes and tickets are what this is for. Somebody opens one of them knowing nothing, and has to open four other files before it means anything. The block is those four files, listed by whoever already knew which ones they were.
 
 - **One path per line.** A `#` note beside it is stripped, and so is a blank line.
 - **A line range works**: `src/parser.js:2-4` gives lines 2 to 4.
 - **A path resolves beside the document first, then from the working directory.** A document names its neighbours by bare filename.
 - **A named file that no longer exists prints as missing**, and every other file still prints.
 - **Nothing is truncated.** Somebody wrote the list by hand, so its length is a decision already made.
-- **`--files-only` leaves the document out**, and prints only what the block named. For a caller that has the document on screen already, which is what Flow's `flow get --files` has by the time it runs this.
+- **`--files-only` leaves the document out**, and prints only what the block named. For a caller that has the document on screen already.
 - **A document with no block prints one line saying so.** Nothing is missing: that document carries its own context.
 
 ## Moving uncommitted work

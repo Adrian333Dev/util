@@ -1,28 +1,39 @@
 #!/usr/bin/env bash
-# description: append a repo's stars, language and pushed date to a file
+# description: add a repository's stars, language and last push date to a file
 #
-# Usage: util github bookmark <repo>... [--to <file>]
+# util github bookmark: save a GitHub repository to a file, as one line.
 #
-#   <repo>      owner/repo, an https URL, a git@ remote, or a deep link
-#   --to <file> the file to append to (default: inbox.md here, or $UTIL_BOOKMARKS)
+#   util github bookmark <repo>... [--to <file>]
 #
-# Writes one markdown list item per repo:
+#   <repo>      owner/repo, an https URL, a git@ remote, or a link into a
+#               repository
+#   --to <file> the file to add to (inbox.md here by default, or $UTIL_BOOKMARKS)
+#
+# Each repository becomes one markdown list item, added to the end of the file:
 #
 #   - [name](url) (`28.2k★` · `TypeScript` · pushed 2026-07-30): description
 #
-# The line is printed as well as appended, so piping it somewhere else works
-# and the append is visible when it does not.
+# The line is printed as well as saved, so piping it somewhere else works, and
+# you can see what was written when it does not.
 #
-# Needs the `gh` CLI, authenticated. The target file resolves against the
-# directory you are standing in, so bookmarking from two projects appends to
-# two different files.
+# Needs the `gh` command, logged in. The file is found from the folder you are
+# standing in, so bookmarking from two projects fills two different files.
 
 set -uo pipefail
 
 me="util github bookmark"
 
 usage() {
-  awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "${BASH_SOURCE[0]}"
+  awk 'NR == 1 { next }
+       /^#/ {
+         sub(/^# ?/, "")
+         if ($0 ~ /^description:/) next
+         if ($0 == "" && !seen) next
+         seen = 1
+         print
+         next
+       }
+       { exit }' "${BASH_SOURCE[0]}"
 }
 
 target="${UTIL_BOOKMARKS:-inbox.md}"

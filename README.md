@@ -2,7 +2,7 @@
 
 One command holding all the small commands you write for yourself: `util git save`, `util fs tree`, `util github clone`.
 
-A symlink builder, a repository cloner and an image optimiser share nothing but the person typing them, and each is useful on a machine with no project open. They also accumulate: 20 of them means 20 names on `PATH` competing with real binaries, and the short obvious ones (`tree`, `link`, `clone`, `merge`) are taken already. `util` spends one name and gives every command a qualifier instead.
+A symlink builder, a repository cloner and an image optimiser have nothing in common except the person typing them, and each one is useful with no project open. They also pile up. 20 such scripts put 20 names on `PATH`, competing with the programs already installed there, and the short obvious names (`tree`, `link`, `clone`, `merge`) are taken. `util` takes one name, and every command sits behind it.
 
 `util` has no features of its own. It reads a list of directories off disk, gathers every executable it finds inside them, and runs the one you named. Adding a command is writing a file. This repository ships one of those directories, `commands/`, registered exactly like the ones you add, so a public repository, a private one and a single project can all contribute commands without knowing about each other.
 
@@ -24,13 +24,13 @@ A symlink builder, a repository cloner and an image optimiser share nothing but 
 
 ```
 util <namespace> <command> [args]
-util <command> [args]              unique across namespaces, so it resolves alone
+util <command> [args]              one of a kind, so the namespace can be left out
 u ...                              second name on PATH, same program
 ```
 
-**A word naming no namespace is looked up across all of them.** It resolves when exactly one command has that name, so `util tree` finds `fs tree`. The day a second `tree` exists anywhere, the short form stops guessing and prints both full names.
+**A word naming no namespace is looked up across all of them.** It runs when exactly one command has that name, so `util tree` finds `fs tree`. The day a second `tree` exists anywhere, the short form stops guessing and prints both full names.
 
-**A word matching nothing names the closest one that exists.** `util unistall` answers `did you mean "uninstall"?`, and `util source drpo <path>` answers the same way. The distance is single character edits, with two neighbours swapped counting as one, so `util gti save` finds `git`. A namespace and its alias count as one candidate. Anything equally close to two names suggests neither, because a wrong guess sends you looking in the wrong place. Every name `util` knows is covered: the built-in words, the namespaces, the aliases, and every command in every source, a project's own `.util/` included.
+**A word matching nothing suggests the closest name that does exist.** `util unistall` answers `did you mean "uninstall"?`, and `util source drpo <path>` answers the same way. Closest means one typo away: a character added, dropped or changed, or two neighbours swapped, so `util gti save` finds `git`. A namespace and its alias count as one candidate. A word equally close to two names suggests neither, because a wrong guess sends you looking in the wrong place. Every name `util` knows is covered: the built-in words, the namespaces, the aliases, and every command in every source, a project's own `.util/` included.
 
 **Everything after the command name passes through untouched.** `util` dispatches to programs it did not write, so it never reads their flags. `util git save --help` is that command's own help, printed by that command.
 
@@ -41,7 +41,7 @@ util ls                    every command there is, grouped by source
 util install               link both names, and register this repository
 util uninstall             unlink both names, and drop this repository
 util source add <path>     read commands from a directory
-util help                  the shape, the conventions, and the listing
+util help                  how util works, and every command there is
 ```
 
 ## Installing
@@ -61,13 +61,13 @@ linked: ~/.local/bin/u
 source added: ~/code/util/commands
 ```
 
-**One line per thing that changed, then only the step you still have to take.** Those three lines are the whole output where `~/.local/bin` is on `PATH` already. Where it is not, neither name resolves yet, and the line that fixes it arrives with the name of the file `$SHELL` reads:
+**One line per thing that changed, then only the step you still have to take.** Those three lines are the whole output where `~/.local/bin` is on `PATH` already. Where it is not, neither name works yet, and the line that fixes it arrives naming the file your shell reads at startup:
 
 ```bash
 echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 ```
 
-**`install` never writes that file itself.** A shell config is yours, `uninstall` could not honestly take back a line it had appended, and which file to write is a guess for any shell but bash and zsh.
+**`install` never writes that file itself.** Your shell config is yours. `uninstall` could not safely take a line back out of it later, and for any shell other than bash and zsh, which file to write is a guess.
 
 **A run finding every name already in place says `already` on each line**, so a finished install never reads as work being redone. Re-run it when the clone moves. Nothing is ever copied: an edit in the clone is live the moment you save it, and a new file in `commands/` needs no re-run at all.
 
@@ -128,7 +128,7 @@ Write an executable at `<source>/<namespace>/<command>` and it exists.
 
 ### Namespaces
 
-A namespace is a folder in a source. It appears when the second command needs it: `git` earns one with a single member, because *save what* has no answer without it, while a namespace holding one self-explanatory command is noise.
+A namespace is a folder in a source. It appears when the second command needs it. `git` has one while holding a single command, because `util save` never says save what. A namespace wrapped around one command whose name already explains itself only adds a word to type.
 
 **A namespace declares itself in a `.info` file**: a description, a short alias, or both. Every namespace here carries the alias alone:
 
@@ -136,7 +136,7 @@ A namespace is a folder in a source. It appears when the second command needs it
 alias: g
 ```
 
-The description is the first paragraph. An `alias:` line anywhere is stripped out before that paragraph is read, so the two sit in either order. An alias gives the namespace a second name (`util g save`), for a name gone ambiguous that still wants to be brief.
+The description is the first paragraph. An `alias:` line anywhere is stripped out before that paragraph is read, so the two sit in either order. An alias gives the namespace a second, shorter name (`util g save`), for when a command name is no longer unique and typing the namespace every time is a chore.
 
 **Most namespaces need no description, and one here needs no `.info` at all.** `fs` has none: the name says what it holds, and a description repeating a name is worse than none. `git` and `github` keep theirs only because an alias needs somewhere to live.
 
@@ -144,17 +144,17 @@ The description is the first paragraph. An `alias:` line anywhere is stripped ou
 
 ### Descriptions
 
-**A `description:` line inside a comment**, in the file's first 50 lines, in whatever comment syntax the language uses. `util ls` prints it beside the name, cut at the first full stop or 120 characters. Write a few words, then stop: a description is an index entry, never documentation, and a second sentence is never seen. The header comment explaining the command stays as long as it needs to be. A command missing a description still lists with the field blank, and the gap is the reminder.
+**A `description:` line inside a comment**, in the file's first 50 lines, in whatever comment syntax the language uses. `util ls` prints it beside the name, cut at the first full stop or 120 characters. Write a few words, then stop: a description is an index entry, never documentation, and a second sentence is never seen. The header comment explaining the command stays as long as it needs to be. A command missing a description still lists, with the field left blank.
 
 **A markdown file can carry one too, and anything inside a code fence is ignored.** In markdown a `#` starts a heading, so an example `# description:` line sitting in a code block looks exactly like the real marker. Put the marker outside the fences.
 
 ### When two sources claim one name
 
-**Two sources defining the same `namespace/command` refuse, and name both files.** Silent shadowing is the bug nobody finds: a command you edit that never runs, because another source got there first.
+**Two sources defining the same `namespace/command` both refuse to run, and name both files.** The alternative is the bug nobody finds: a command you keep editing that never runs, because another source claimed that name first.
 
-The refusal is scoped to that one command. Everything else in both sources keeps working, and `util ls` marks the clash with both paths, so the listing is where you go to see what happened.
+Only that one command refuses. Everything else in both sources keeps working, and `util ls` marks the clash with both paths, so the listing is where you go to see what happened.
 
-A private command deliberately overriding a public one is a real want. That override is not supported yet.
+Deliberately overriding a public command with a private one is a fair thing to want. It is not supported yet.
 
 ## Development
 
