@@ -1,6 +1,6 @@
 'use strict';
 /**
- * `util` — the registry, the resolution rules, and handing a command the
+ * `util`: the registry, the resolution rules, and handing a command the
  * arguments it was given.
  *
  * Every test runs against a scratch `UTIL_HOME` and a scratch source tree, so
@@ -155,7 +155,7 @@ test('a namespace names itself and its alias in .info, and both reach the comman
 
   assert.match(run(['ls']).stdout, /git · g\s+git, wrapped/);
   assert.strictEqual(run(['g', 'save']).stdout.trim(), 'ran save.sh');
-  assert.match(run(['g']).stdout, /util git · util g — git, wrapped/);
+  assert.match(run(['g']).stdout, /util git · util g: git, wrapped/);
 });
 
 test('a description is read off the file, and a command missing one still lists', () => {

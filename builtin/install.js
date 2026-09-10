@@ -1,6 +1,6 @@
 'use strict';
 /**
- * `util install` — the two names on PATH, and this repository as a source.
+ * `util install`: the two names on PATH, and this repository as a source.
  *
  * Run it once by path on a fresh machine, because `util` is not a command
  * until this has made it one:
@@ -13,7 +13,7 @@
  * saved, and a command added to `commands/` needs no re-run at all.
  *
  * The link directory is `~/.local/bin`. `--bin <path>` moves it, and `UTIL_BIN`
- * moves it from the environment — which is what the tests set, beside
+ * moves it from the environment, which is what the tests set, beside
  * `UTIL_HOME`, so a test that names no directory still cannot put symlinks on
  * the machine running the suite.
  *
@@ -55,7 +55,7 @@ function refuseReal(to) {
   }
   if (!existing.isSymbolicLink()) {
     throw new UtilError(
-      `${to} is a real file, not a link — util will not replace it.\n` +
+      `${to} is a real file, not a link, so util will not replace it.\n` +
       '  Move it aside, or pass --bin <path> to link somewhere else.'
     );
   }
@@ -90,8 +90,12 @@ module.exports = {
     done.push(`${isNew ? 'source added' : 'source already registered'}: ${sources.shorten(added)}`);
 
     out(done.join('\n'));
+    // The step that bites: a shell open before this ran can hold `util` as a
+    // path that no longer exists, and a shell that never had it needs nothing.
     out(
-      `\nCheck ${sources.shorten(bin)} is on your PATH, then both names work anywhere.\n` +
+      `\n${sources.shorten(bin)} has to be on your PATH, and then both names work anywhere.\n\n` +
+      '  command -v util   says whether this shell can see the link yet\n' +
+      '  hash -r           clears a path the shell remembered from before\n\n' +
       'util ls prints every command, this repository\'s included.'
     );
     return 0;

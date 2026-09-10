@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * util — the commands you type that have nothing to do with each other.
+ * util: the commands you type that have nothing to do with each other.
  *
  * A dispatcher, not a monolith. Nothing is built into this program: it reads a
  * registry of source directories, builds one namespace out of everything it
@@ -54,7 +54,7 @@ const HELP_WIDTH = 24;
 const BUILTIN = { ls, install, uninstall };
 const GROUPS = { source };
 
-const TITLE = 'util — general-purpose commands, joined from every registered source';
+const TITLE = 'util: general-purpose commands, joined from every registered source';
 
 const NOTES = `shape    util <namespace> <command> [args]. A word naming no namespace is
          looked up across all of them and resolves when exactly one command
@@ -98,7 +98,7 @@ function help() {
 function runGroup(name, group, argv) {
   const [typed, ...args] = argv;
   if (!typed || HELP_WORDS.includes(typed)) {
-    const lines = [`util ${name} — ${group.summary}`, ''];
+    const lines = [`util ${name}: ${group.summary}`, ''];
     for (const [action, decl] of Object.entries(group.actions)) {
       lines.push(render.row(
         2, `util ${name} ${action}${decl.args ? ' ' + decl.args : ''}`, decl.summary, HELP_WIDTH));
@@ -111,7 +111,7 @@ function runGroup(name, group, argv) {
   const chosen = actions.includes(typed) ? typed : group.default;
   const rest = actions.includes(typed) ? args : argv;
   if (!chosen) {
-    throw new UtilError(`unknown ${name} action "${typed}" — one of: ${actions.join(', ')}`);
+    throw new UtilError(`unknown ${name} action "${typed}". One of: ${actions.join(', ')}.`);
   }
   return group.actions[chosen].run({ positional: rest, usage: `util ${name} ${chosen}`, out });
 }
@@ -154,7 +154,7 @@ function dispatch(argv) {
 
   const [first, ...rest] = argv;
   if (first.startsWith('-')) {
-    throw new UtilError(`"${first}" is a flag — a namespace or a command comes first.`);
+    throw new UtilError(`"${first}" is a flag. A namespace or a command comes first.`);
   }
 
   if (BUILTIN[first]) return BUILTIN[first].run({ positional: rest, usage: `util ${first}`, out });
@@ -185,7 +185,7 @@ function dispatch(argv) {
     `"${first}" is neither a namespace nor a command.\n` +
     (known.length
       ? `  namespaces: ${known.join(', ')}\n  util ls prints every command.`
-      : '  No sources registered — util source add <path>.')
+      : '  No sources registered. Add one with util source add <path>.')
   );
 }
 

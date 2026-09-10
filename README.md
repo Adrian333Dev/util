@@ -66,7 +66,9 @@ node ~/code/util/util.js install
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-Open a new shell and `util ls` prints every command this repository ships. That is the whole install.
+`command -v util` says whether your shell can see the link yet, and `util ls` prints every command this repository ships. That is the whole install.
+
+**A shell that was already open can miss it.** Bash remembers where it found a command, so a terminal that ran an older `util` keeps pointing at the old path. `hash -r` clears that, and a new terminal never has it.
 
 Nothing is copied. An edit in the clone is live the moment you save it, and a command added to `commands/` needs no re-run at all. Re-run it when the clone moves.
 

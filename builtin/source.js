@@ -1,6 +1,6 @@
 'use strict';
 /**
- * `util source` — the registry of directories commands are read from.
+ * `util source`: the registry of directories commands are read from.
  *
  * A source is registered once and contributes everything it holds from then
  * on, so adding a command is writing a file rather than running anything. The

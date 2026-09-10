@@ -4,7 +4,7 @@
 # Usage: util github clone <repo>... [--into <dir>]
 #
 #   <repo>        owner/repo, an https URL, a git@ remote, or a deep link into
-#                 a file or a branch — all four reduce to the same slug
+#                 a file or a branch, and all four reduce to the same slug
 #   --into <dir>  clone into this directory instead of the current one
 #
 # A repo already on disk is reported and skipped, so re-running the same line
@@ -29,7 +29,7 @@ while [ $# -gt 0 ]; do
     --into)
       [ $# -ge 2 ] || { echo "$me: --into needs a directory" >&2; exit 64; }
       into="$2"; shift 2 ;;
-    -*) echo "$me: unknown flag — $1" >&2; exit 64 ;;
+    -*) echo "$me: unknown flag \"$1\"" >&2; exit 64 ;;
     *) repos+=("$1"); shift ;;
   esac
 done
@@ -56,7 +56,7 @@ for raw in "${repos[@]}"; do
   slug=$(slug_of "$raw")
   case "$slug" in
     */*) ;;
-    *) echo "$me: not a repo — $raw" >&2; failed=1; continue ;;
+    *) echo "$me: not a repo \"$raw\"" >&2; failed=1; continue ;;
   esac
 
   name="${slug#*/}"
@@ -70,7 +70,7 @@ for raw in "${repos[@]}"; do
   if git clone --quiet "https://github.com/$slug" "$dest"; then
     echo "cloned: $slug → $dest"
   else
-    echo "$me: failed — $slug" >&2
+    echo "$me: failed on $slug" >&2
     failed=1
   fi
 done

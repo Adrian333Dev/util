@@ -9,7 +9,7 @@
 // The target is an absolute path built from where you are standing, so a
 // relative source keeps working after the link is made. Naming a directory as
 // the last argument puts one link inside it per source, each keeping its own
-// basename — the shape `ln -s` uses, and the one wanted when linking a folder
+// basename, the shape `ln -s` uses and the one wanted when linking a folder
 // of scripts into ~/.local/bin.
 //
 // An existing symlink is replaced without asking: pointing a link somewhere new
@@ -32,10 +32,10 @@ const force = argv.includes('--force');
 const paths = argv.filter((a) => a !== '--force');
 
 if (paths.some((a) => a.startsWith('-'))) {
-  die(`unknown flag — ${paths.find((a) => a.startsWith('-'))}\n  ${ME} <source>... <target>`);
+  die(`unknown flag "${paths.find((a) => a.startsWith('-'))}"\n  ${ME} <source>... <target>`);
 }
 if (paths.length < 2) {
-  die(`two paths at least — a source and a target.\n  ${ME} <source>... <target>`);
+  die(`two paths at least, a source and a target.\n  ${ME} <source>... <target>`);
 }
 
 const sources = paths.slice(0, -1).map((p) => path.resolve(p));
@@ -58,13 +58,13 @@ if (sources.length > 1 && !intoDir) {
 
 /** Point a link at a source, replacing a link that is already there. */
 function makeLink(source, dest) {
-  if (!fs.existsSync(source)) die(`no such source — ${source}`);
+  if (!fs.existsSync(source)) die(`${source} does not exist`);
 
   let existing;
   try {
     existing = fs.lstatSync(dest);
   } catch (e) {
-    if (e.code !== 'ENOENT') die(`${dest} could not be read — ${e.message}`);
+    if (e.code !== 'ENOENT') die(`${dest} could not be read (${e.message})`);
   }
 
   if (existing) {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # description: add, commit and push in one step
 #
-# util git save — the three git commands that always run together.
+# util git save: the three git commands that always run together.
 #
 #   util git save                     everything, generated message, push
 #   util git save "fix the parser"    everything, that message, push
@@ -10,7 +10,7 @@
 #   util git save --dry-run           print the commands, run none of them
 #
 # That is the whole surface. This shortens `add && commit && push`; it is not a
-# replacement for git. Amend, revert, rebase, force — plain git commands.
+# replacement for git. Amend, revert, rebase, force: plain git commands.
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ while [ $# -gt 0 ]; do
     -h|--help)    usage; exit 0 ;;
     -*)           echo "$me: unknown option $1 (try $me --help)" >&2; exit 1 ;;
     *)            if [ -z "$msg" ]; then msg="$1"; shift
-                  else echo "$me: unexpected argument \"$1\" — quote the message" >&2; exit 1; fi ;;
+                  else echo "$me: unexpected argument \"$1\", quote the message" >&2; exit 1; fi ;;
   esac
 done
 
@@ -50,7 +50,7 @@ git rev-parse --show-toplevel >/dev/null 2>&1 || { echo "$me: not inside a git r
 # often. Detached, the commit is reachable by SHA alone and the push cannot name a
 # remote branch. Refuse before staging, rather than stranding a commit and failing.
 if ! git symbolic-ref -q HEAD >/dev/null; then
-  echo "$me: HEAD is detached — a commit here would belong to no branch." >&2
+  echo "$me: HEAD is detached, so a commit here would belong to no branch." >&2
   echo "       Put one on it first: git switch -c <branch>" >&2
   exit 1
 fi
@@ -64,7 +64,7 @@ run() {
 }
 
 # No message given: name the files, rather than every commit reading "save".
-# Two levels deep reads better than one — "flow/global" beats "flow".
+# Two levels deep reads better than one: "flow/global" beats "flow".
 generated_message() {
   local files count where
   files=$(git diff --cached --name-only)
@@ -72,7 +72,7 @@ generated_message() {
   where=$(printf '%s\n' "$files" | awk -F/ 'NF>1 {print $1"/"$2; next} {print $1}' \
           | sort -u | head -3 | paste -sd', ' -)
   [ -n "$where" ] || where="repo"
-  echo "wip: ${count} file(s) — ${where}"
+  echo "wip: ${count} file(s) in ${where}"
 }
 
 if [ ${#paths[@]} -gt 0 ]; then run git add -- "${paths[@]}"; else run git add -A; fi

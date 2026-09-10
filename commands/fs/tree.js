@@ -3,7 +3,7 @@
 //
 // Usage: util fs tree [path] [--depth N] [--except pattern]
 //   --depth N      Limit output depth (default: unlimited)
-//   --except pat   Exclude by name, folder name, or glob — repeatable
+//   --except pat   Exclude by name, folder name, or glob (repeatable)
 //                  Examples: --except __tests__  --except .github  --except "*.md"
 //
 // Was `ptree` in the Flow repo until 2026-08-30. The `description:` reader it
@@ -85,7 +85,7 @@ function walk(dir, prefix, depth) {
 }
 
 if (!fs.existsSync(target)) {
-  console.error(`${ME}: no such path — ${target}`);
+  console.error(`${ME}: nothing at ${target}`);
   process.exit(1);
 }
 

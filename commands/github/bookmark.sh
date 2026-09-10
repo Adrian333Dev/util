@@ -8,7 +8,7 @@
 #
 # Writes one markdown list item per repo:
 #
-#   - [name](url) (`28.2k★` · `TypeScript` · pushed 2026-07-30) — description
+#   - [name](url) (`28.2k★` · `TypeScript` · pushed 2026-07-30): description
 #
 # The line is printed as well as appended, so piping it somewhere else works
 # and the append is visible when it does not.
@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
     --to)
       [ $# -ge 2 ] || { echo "$me: --to needs a file" >&2; exit 64; }
       target="$2"; shift 2 ;;
-    -*) echo "$me: unknown flag — $1" >&2; exit 64 ;;
+    -*) echo "$me: unknown flag \"$1\"" >&2; exit 64 ;;
     *) repos+=("$1"); shift ;;
   esac
 done
@@ -46,7 +46,7 @@ if [ ${#repos[@]} -eq 0 ]; then
 fi
 
 command -v gh >/dev/null 2>&1 || {
-  echo "$me: needs the gh CLI — https://cli.github.com" >&2
+  echo "$me: needs the gh CLI: https://cli.github.com" >&2
   exit 1
 }
 
@@ -59,7 +59,7 @@ for raw in "${repos[@]}"; do
 
   case "$slug" in
     */*) ;;
-    *) echo "$me: not a repo — $raw" >&2; failed=1; continue ;;
+    *) echo "$me: not a repo \"$raw\"" >&2; failed=1; continue ;;
   esac
 
   # Stars round to one decimal below 100k and to whole thousands above it, so
@@ -76,8 +76,8 @@ for raw in "${repos[@]}"; do
         (if .archived then "`⚠ archived`" else empty end)
       ] | join(" · ") ) as $meta
     | ( (.description // "no description") | gsub("\\s+"; " ") ) as $desc
-    | "- [\(.name)](\(.html_url)) (\($meta)) — \($desc)"
-  ') || { echo "$me: failed — $slug" >&2; failed=1; continue; }
+    | "- [\(.name)](\(.html_url)) (\($meta)): \($desc)"
+  ') || { echo "$me: failed on $slug" >&2; failed=1; continue; }
 
   printf '%s\n' "$line" >> "$target" || { failed=1; continue; }
   printf '%s\n' "$line"
