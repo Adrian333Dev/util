@@ -298,3 +298,80 @@ test('install refuses a real file on PATH, and writes nothing at all', () => {
   assert.ok(!fs.existsSync(path.join(bin, 'util')), 'a refusal leaves the machine as it was');
   assert.ok(!fs.existsSync(path.join(home, 'sources')), 'and registers nothing');
 });
+
+test('uninstall removes both names and unregisters this repository', () => {
+  const dir = scratch('uninstall');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+
+  util(home, ['install'], { bin });
+  const result = util(home, ['uninstall'], { bin });
+  assert.strictEqual(result.code, 0, result.stderr);
+
+  for (const name of ['util', 'u']) {
+    assert.ok(!fs.existsSync(path.join(bin, name)), `${name} is gone from PATH`);
+  }
+  assert.strictEqual(fs.readFileSync(path.join(home, 'sources'), 'utf8').trim(), '',
+    'the source this repository registered is gone with it');
+  assert.match(result.stdout, /is empty now/, 'and the registry itself stays on disk');
+});
+
+test('uninstall leaves every source it did not add', () => {
+  const dir = scratch('uninstall-private');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+  const private_ = path.join(dir, 'private');
+  command(private_, path.join('git', 'mine'));
+
+  util(home, ['install'], { bin });
+  util(home, ['source', 'add', private_]);
+  const result = util(home, ['uninstall'], { bin });
+
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.match(result.stdout, /1 other source stays registered/);
+  const registry = fs.readFileSync(path.join(home, 'sources'), 'utf8');
+  assert.strictEqual(registry.trim().split('\n').length, 1, 'one line, and it is not this clone\'s');
+  assert.match(registry, /private$/m);
+  assert.match(util(home, ['ls']).stdout, /mine/, 'a private source keeps working alone');
+});
+
+test('uninstall says so when there is nothing of this clone here', () => {
+  const dir = scratch('uninstall-absent');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+
+  const result = util(home, ['uninstall'], { bin });
+  assert.strictEqual(result.code, 0, 'already gone is not a failure');
+  assert.match(result.stdout, /util is not installed here/);
+
+  util(home, ['install'], { bin });
+  util(home, ['uninstall'], { bin });
+  const again = util(home, ['uninstall'], { bin });
+  assert.strictEqual(again.code, 0, again.stderr);
+  assert.match(again.stdout, /util is not installed here/, 'and running it twice is safe');
+});
+
+test('uninstall keeps a real file and another clone\'s link, and names both', () => {
+  const dir = scratch('uninstall-foreign');
+  const home = path.join(dir, 'home');
+  const bin = path.join(dir, 'bin');
+  const other = path.join(dir, 'other-clone', 'util.js');
+
+  util(home, ['install'], { bin });
+  // `u` is somebody else's program, and `util` now points at a second copy of
+  // util: removing either would break something this install never made.
+  fs.rmSync(path.join(bin, 'u'));
+  fs.writeFileSync(path.join(bin, 'u'), 'somebody else\n');
+  fs.mkdirSync(path.dirname(other), { recursive: true });
+  fs.writeFileSync(other, '');
+  fs.rmSync(path.join(bin, 'util'));
+  fs.symlinkSync(other, path.join(bin, 'util'));
+
+  const result = util(home, ['uninstall'], { bin });
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.match(result.stdout, /is a real file, so util never linked it/);
+  assert.match(result.stdout, /another clone/);
+  assert.strictEqual(fs.readFileSync(path.join(bin, 'u'), 'utf8'), 'somebody else\n');
+  assert.strictEqual(fs.readlinkSync(path.join(bin, 'util')), other);
+  assert.match(result.stdout, /source dropped/, 'the registry line is still this clone\'s to remove');
+});

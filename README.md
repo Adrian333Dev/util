@@ -9,6 +9,7 @@ One command holding all the small commands you write for yourself: `util git sav
 - [What `util` is for](#what-util-is-for)
 - [Typing a command](#typing-a-command)
 - [Installing](#installing)
+  - [Removing it](#removing-it)
 - [Commands](#commands)
 - [Adding a command](#adding-a-command)
   - [Sources](#sources)
@@ -36,29 +37,53 @@ u ...                              second name on PATH, same program
 
 **Everything after the command name passes through untouched.** `util` dispatches to programs it did not write, so it never reads their flags. `util git save --help` is that command's own help, printed by that command.
 
-Four words `util` answers itself, so no namespace can be called one of them:
+Five words `util` answers itself, so no namespace can be called one of them:
 
 ```
 util ls                    every command there is, grouped by source
 util install               link both names, and register this repository
+util uninstall             unlink both names, and drop this repository
 util source add <path>     read commands from a directory
 util help                  the shape, the conventions, and the listing
 ```
 
 ## Installing
 
+**Clone it anywhere, then run the installer by path once**, because `util` is not a command until that run has made it one.
+
 ```bash
-node <clone>/util.js install
+git clone https://github.com/Adrian333Dev/util.git ~/code/util
+node ~/code/util/util.js install
 ```
 
-**Run it by path once**, because `util` is not a command until that run has made it one. It links `util` and `u` in `~/.local/bin`, both pointing at `util.js`, and it registers this repository's `commands/` as a source. Every later run is `util install`.
+`~/code/util` is an example, not a required location: the installer links whatever clone it is run out of. Nothing is fetched and nothing is built, because `util` is plain Node with no dependencies.
+
+`install` links `util` and `u` in `~/.local/bin`, both pointing at `util.js`, and it registers this repository's `commands/` as a source. Every later run is `util install`.
+
+**`~/.local/bin` has to be on your `PATH`.** Most systems put it there already. Where yours has not, this line in `~/.bashrc` or `~/.zshrc` does it:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Open a new shell and `util ls` prints every command this repository ships. That is the whole install.
 
 Nothing is copied. An edit in the clone is live the moment you save it, and a command added to `commands/` needs no re-run at all. Re-run it when the clone moves.
 
 - **`--bin <path>`** links somewhere other than `~/.local/bin`. `UTIL_BIN` sets the same directory from the environment, which is what the tests use.
 - **A real file already holding one of the names refuses.** The message names the path, nothing is linked, and no source is registered. An existing symlink is replaced without asking, because pointing a name at a moved clone is the whole reason to re-run.
 
-`~/.local/bin` has to be on your `PATH`.
+### Removing it
+
+```bash
+util uninstall
+```
+
+Both names off `PATH`, and this repository dropped from the registry. It takes `--bin <path>` on the same terms, and needs it whenever `install` was given one.
+
+**Nothing else is touched.** A source you registered by hand stays registered, `~/.util` stays where it is, and the clone stays on disk: removing that is `rm -rf` on a directory, which needs no command of its own.
+
+**A name `util` did not create is left alone and named in the output**, whether it is a real file or a link into a second clone. Running it twice is safe, and so is running it on a machine where nothing was installed: both say so and exit 0.
 
 ## Commands
 
@@ -148,7 +173,7 @@ A private command deliberately overriding a public one is a real want. That over
 ```
 util.js         the entry point: resolution and dispatch
 lib/            sources, the catalog, the description and help readers, the listing
-builtin/        the commands util answers itself: ls, install, and source
+builtin/        the commands util answers itself: ls, install, uninstall, source
 commands/       the public source: <namespace>/<command>
 tests/          node --test, no dependencies
 ```

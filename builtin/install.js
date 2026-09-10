@@ -16,11 +16,13 @@
  * moves it from the environment — which is what the tests set, beside
  * `UTIL_HOME`, so a test that names no directory still cannot put symlinks on
  * the machine running the suite.
+ *
+ * `util uninstall` takes it all back, and takes the same flag.
  */
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+const { binDir } = require('../lib/args');
 const { UtilError } = require('../lib/error');
 const sources = require('../lib/sources');
 
@@ -35,22 +37,6 @@ const NAMES = ['util', 'u'];
  * directory holding the link.
  */
 const cloneRoot = () => path.resolve(__dirname, '..');
-
-/** The one flag, read by hand: a general flag layer for a single name is noise. */
-function options(positional, usage) {
-  let bin = process.env.UTIL_BIN || path.join(os.homedir(), '.local', 'bin');
-  const rest = [...positional];
-  while (rest.length) {
-    const arg = rest.shift();
-    if (arg !== '--bin') {
-      throw new UtilError(`${usage} does not take "${arg}".\n  usage: ${usage} [--bin <path>]`);
-    }
-    const value = rest.shift();
-    if (!value) throw new UtilError(`--bin wants a path.\n  usage: ${usage} [--bin <path>]`);
-    bin = value;
-  }
-  return { bin: sources.expand(bin) };
-}
 
 /**
  * A name already taken by a real file is somebody else's.
@@ -76,9 +62,11 @@ function refuseReal(to) {
 }
 
 module.exports = {
+  // Read by `uninstall`, so the two names are written down once.
+  NAMES,
   summary: 'put util on PATH, and register this repository as a source',
   run({ positional, usage, out }) {
-    const { bin } = options(positional, usage);
+    const bin = binDir(positional, usage);
     const clone = cloneRoot();
     const entry = path.join(clone, 'util.js');
     const targets = NAMES.map((name) => path.join(bin, name));

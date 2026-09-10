@@ -20,6 +20,7 @@
  *   util <command> [args]              unique across namespaces, so it resolves
  *   util ls                            every command there is
  *   util install                       the two PATH names, and this source
+ *   util uninstall                     both names off PATH, this source gone
  *   util source add <path>             read commands from a directory
  *
  * Two names on PATH, `util` and `u`, one program.
@@ -32,6 +33,7 @@ const catalogue = require('./lib/catalog');
 const render = require('./lib/render');
 const ls = require('./builtin/ls');
 const install = require('./builtin/install');
+const uninstall = require('./builtin/uninstall');
 const source = require('./builtin/source');
 
 // `util ls | head -2` closes the pipe while node is still writing into it. The
@@ -49,7 +51,7 @@ const HELP_WORDS = ['-h', '--help', 'help'];
 /** Wider than the listing's, because a built-in prints its arguments too. */
 const HELP_WIDTH = 24;
 
-const BUILTIN = { ls, install };
+const BUILTIN = { ls, install, uninstall };
 const GROUPS = { source };
 
 const TITLE = 'util — general-purpose commands, joined from every registered source';
