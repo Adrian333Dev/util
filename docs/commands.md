@@ -32,7 +32,7 @@ Every command prints its own file header for `--help`, opening with one line say
 **`github`**, aliased `gh`
 
 - **`clone <repo>...`**: clone repositories from GitHub, named by URL or by `owner/repo`.
-- **`bookmark <repo>...`**: save a repository's stars, language and last push date. `--to <file>` adds one line to a file, `--to <folder>/` writes `owner_repo.md` into the folder, with the fields at the top and a `## Notes` heading. A repository already saved is skipped: a link already in the file, or a file of that name anywhere in the git repository.
+- **`bookmark <repo>...`**: save a repository's stars, language and last push date as one line, added to `--to <file>`. A repository whose link is already in the file is skipped.
 
 Three of them do something a one-line description cannot cover.
 
