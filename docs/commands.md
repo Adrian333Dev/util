@@ -19,7 +19,7 @@ Every command prints its own file header for `--help`, opening with one line say
 
 **`fs`**
 
-- **`tree [path]`**: print a folder as a tree, hiding `node_modules`, `.git` and other build folders. Each entry carries its own `description:` line.
+- **`tree [path]`**: print a folder as a tree, hiding `node_modules`, `.git` and other build folders. Each entry carries its own `description:` line. `--depth` and `--except` trim it, and `--into <file>` writes it into a document between a line `<!-- tree -->` and a line `<!-- /tree -->`.
 - **`merge <path>...`**: print many files as one text, each in a code block labelled with its path. `src/parser.js:40-120` takes a line range, `--ext` and `--except` filter, `--force` prints past the 2000-line limit.
 - **`open <file>`**: print a document, then every file its `open` block lists.
 - **`link <source> <target>`**: make a symlink, refusing to replace a real file.
@@ -32,7 +32,7 @@ Every command prints its own file header for `--help`, opening with one line say
 **`github`**, aliased `gh`
 
 - **`clone <repo>...`**: clone repositories from GitHub, named by URL or by `owner/repo`.
-- **`bookmark <repo>`**: add a repository's stars, language and last push date to a file.
+- **`bookmark <repo>...`**: save a repository's stars, language and last push date. `--to <file>` adds one line to a file, `--to <folder>/` writes `owner_repo.md` into the folder, with the fields at the top and a `## Notes` heading. A repository already saved is skipped: a link already in the file, or a file of that name anywhere in the git repository.
 
 Three of them do something a one-line description cannot cover.
 

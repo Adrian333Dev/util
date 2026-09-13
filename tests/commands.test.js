@@ -384,3 +384,140 @@ test('github clone and bookmark refuse an empty argument list', () => {
   assert.notStrictEqual(bookmark.code, 0);
   assert.match(bookmark.stderr, /name at least one repo/);
 });
+
+/**
+ * A `gh` that answers from files, so bookmark runs without the network.
+ *
+ * The real `gh api --jq` applies the filter itself. This one hands the filter
+ * to `jq`, which is why these tests skip on a machine without it.
+ */
+function fakeGitHub(name, repos) {
+  const dir = scratch(name);
+  const bin = path.join(dir, 'bin');
+  write(bin, 'gh', '#!/usr/bin/env bash\nexec jq -r "$4" "$(dirname "$0")/../repos/${2#repos/}.json"\n');
+  fs.chmodSync(path.join(bin, 'gh'), 0o755);
+  for (const repo of repos) write(dir, `repos/${repo.full_name}.json`, JSON.stringify(repo));
+  return { dir, env: { PATH: `${bin}:${process.env.PATH}` } };
+}
+
+const hasJq = spawnSync('jq', ['--version']).status === 0;
+
+const MEM0 = {
+  full_name: 'mem0ai/mem0',
+  html_url: 'https://github.com/mem0ai/mem0',
+  stargazers_count: 64712,
+  language: 'Python',
+  pushed_at: '2026-09-03T10:00:00Z',
+  archived: false,
+  description: 'The Memory Layer: "drop-in"   memory\nfor agents',
+};
+
+const BARE = {
+  full_name: 'someone/old-skill',
+  html_url: 'https://github.com/someone/old-skill',
+  stargazers_count: 340,
+  language: null,
+  pushed_at: '2025-01-02T00:00:00Z',
+  archived: true,
+  description: null,
+};
+
+test('github bookmark writes owner_repo.md into a folder, with the fields quoted', { skip: !hasJq && 'needs jq' }, () => {
+  const home = shipped('bookmark-folder');
+  const { dir, env } = fakeGitHub('bookmark-folder-gh', [MEM0, BARE]);
+  // A repository of its own. Otherwise the search for an existing file climbs
+  // to this one and finds what another test left in tmp/.
+  git(['init', '-q'], dir);
+  const inbox = path.join(dir, 'inbox') + '/';
+
+  const result = util(home, ['github', 'bookmark', 'https://github.com/mem0ai/mem0', 'someone/old-skill', '--to', inbox], { env });
+  assert.strictEqual(result.code, 0, result.stderr);
+
+  assert.strictEqual(fs.readFileSync(path.join(inbox, 'mem0ai_mem0.md'), 'utf8'), [
+    '---',
+    'description: "The Memory Layer: \\"drop-in\\" memory for agents"',
+    'type: ""',
+    'url: https://github.com/mem0ai/mem0',
+    'stars: 64.7k',
+    'language: Python',
+    'pushed: 2026-09-03',
+    '---',
+    '',
+    '## Notes',
+    '',
+  ].join('\n'));
+
+  const bare = fs.readFileSync(path.join(inbox, 'someone_old-skill.md'), 'utf8');
+  assert.match(bare, /^description: ""$/m, 'no description is an empty value, never a made-up one');
+  assert.match(bare, /^language: ""$/m);
+  assert.match(bare, /^archived: true$/m);
+
+  // The tree reads the description back without the quotes and escapes.
+  const tree = util(home, ['fs', 'tree', dir], { env });
+  assert.match(tree.stdout, /mem0ai_mem0\.md\s+\/\/ The Memory Layer: "drop-in" memory for agents/);
+  assert.doesNotMatch(tree.stdout, /someone_old-skill\.md\s+\/\//, 'an empty description prints nothing');
+});
+
+test('github bookmark skips a repo whose file sits anywhere in the same git repository', { skip: !hasJq && 'needs jq' }, () => {
+  const home = shipped('bookmark-skip');
+  const { dir, env } = fakeGitHub('bookmark-skip-gh', [MEM0]);
+  git(['init', '-q'], dir);
+  // Filed already, under another folder and another case.
+  write(dir, 'agent-tools/memory/MEM0AI_mem0.md', '---\ndescription: "mine"\n---\n\n## Notes\n\n- used it\n');
+
+  const result = util(home, ['gh', 'bookmark', 'mem0ai/mem0', '--to', path.join(dir, 'inbox') + '/'], { env });
+  assert.strictEqual(result.code, 0, 'a skip is not a failure');
+  assert.match(result.stderr, /mem0ai\/mem0 is already at .*agent-tools\/memory\/MEM0AI_mem0\.md, skipped/);
+  assert.ok(!fs.existsSync(path.join(dir, 'inbox', 'mem0ai_mem0.md')), 'nothing written');
+  assert.match(fs.readFileSync(path.join(dir, 'agent-tools/memory/MEM0AI_mem0.md'), 'utf8'), /used it/);
+});
+
+test('github bookmark adds a line named owner/repo to a file, once', { skip: !hasJq && 'needs jq' }, () => {
+  const home = shipped('bookmark-line');
+  const { dir, env } = fakeGitHub('bookmark-line-gh', [MEM0]);
+  const list = path.join(dir, 'list.md');
+
+  const first = util(home, ['gh', 'bookmark', 'mem0ai/mem0', '--to', list], { env });
+  assert.strictEqual(first.code, 0, first.stderr);
+  const second = util(home, ['gh', 'bookmark', 'git@github.com:mem0ai/mem0.git', '--to', list], { env });
+  assert.strictEqual(second.code, 0, second.stderr);
+  assert.match(second.stderr, /already in/);
+
+  assert.strictEqual(fs.readFileSync(list, 'utf8'),
+    '- [mem0ai/mem0](https://github.com/mem0ai/mem0) (`64.7k★` · `Python` · pushed 2026-09-03): ' +
+    'The Memory Layer: "drop-in" memory for agents\n');
+});
+
+test('fs tree --into replaces only what sits between the two tree lines', () => {
+  const home = shipped('fs-tree-into');
+  const dir = scratch('fs-tree-into-target');
+  write(dir, 'software/.info', 'everything else\n');
+  write(dir, 'agent-tools/.info', 'made for AI agents\n');
+  const readme = write(scratch('fs-tree-into-doc'), 'README.md',
+    '# Toolbox\n\nHow to add a tool.\n\n<!-- tree -->\nold tree\n<!-- /tree -->\n\nThe end.\n');
+
+  const result = util(home, ['fs', 'tree', dir, '--into', readme]);
+  assert.strictEqual(result.code, 0, result.stderr);
+
+  const text = fs.readFileSync(readme, 'utf8');
+  assert.ok(text.startsWith('# Toolbox\n\nHow to add a tool.\n\n<!-- tree -->\n```\n'), text);
+  assert.ok(text.endsWith('\n```\n<!-- /tree -->\n\nThe end.\n'), text);
+  assert.match(text, /agent-tools\/\s+\/\/ made for AI agents/);
+  assert.doesNotMatch(text, /old tree/);
+  assert.doesNotMatch(text, /directories/, 'no count inside a document');
+
+  // Run twice, the document comes out the same.
+  util(home, ['fs', 'tree', dir, '--into', readme]);
+  assert.strictEqual(fs.readFileSync(readme, 'utf8'), text);
+});
+
+test('fs tree --into refuses a file missing either tree line, and leaves it alone', () => {
+  const home = shipped('fs-tree-into-refuse');
+  const dir = scratch('fs-tree-into-refuse-target');
+  const readme = write(dir, 'README.md', '# Toolbox\n\n<!-- tree -->\n');
+
+  const result = util(home, ['fs', 'tree', dir, '--into', readme]);
+  assert.notStrictEqual(result.code, 0);
+  assert.match(result.stderr, /needs a line "<!-- tree -->" and a later line "<!-- \/tree -->"/);
+  assert.strictEqual(fs.readFileSync(readme, 'utf8'), '# Toolbox\n\n<!-- tree -->\n');
+});
