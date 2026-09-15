@@ -26,7 +26,7 @@ Every command prints its own file header for `--help`, opening with one line say
 
 **`git`**, aliased `g`
 
-- **`save`**: add, commit and push in one step.
+- **`save`**: add, commit and push in one step. With no message, the message names what changed and counts the lines, such as `skills/dev/fold: 4 files +120 -30`.
 - **`work`**: move the changes you have not committed to another machine.
 
 **`github`**, aliased `gh`

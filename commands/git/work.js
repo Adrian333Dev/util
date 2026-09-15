@@ -542,6 +542,10 @@ function drop({ positional, flags }) {
   const ctx = context();
   const { git, branch } = ctx;
   const machine = requireMachine(ctx);
+  const remote = remoteOf(git, branch);
+
+  const warning = fetchCopies(git, remote);
+  if (warning) out(`${warning}\n`);
 
   const here = readCopies(git).filter((c) => c.branch === branch);
   if (!here.length) throw new Fail(`no stored copy for ${branch}.`);
@@ -562,7 +566,6 @@ function drop({ positional, flags }) {
     if (targets.length > 1) throw new Fail(`"${wanted}" matches ${targets.map((c) => c.machine).join(', ')}: name one in full.`);
   }
 
-  const remote = remoteOf(git, branch);
   for (const c of targets) {
     git(['update-ref', '-d', c.ref]);
     if (remote) {

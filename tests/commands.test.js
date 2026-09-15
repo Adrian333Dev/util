@@ -302,9 +302,7 @@ test('git work refuses to send from a machine with no name, and drops a copy on 
   git(['config', 'util.machine', 'desktop'], desktop);
   assert.strictEqual(util(home, ['git', 'work', 'send'], { cwd: desktop }).code, 0);
 
-  // `drop` reads the labels this clone already has, and only `ls` and `get`
-  // fetch. So the listing comes first here, exactly as it would by hand.
-  assert.strictEqual(util(home, ['git', 'work', 'ls'], { cwd: laptop }).code, 0);
+  // No `ls` first: `drop` fetches the labels itself, as `get` does.
   const dropped = util(home, ['git', 'work', 'drop', 'desktop'], { cwd: laptop });
   assert.strictEqual(dropped.code, 0, dropped.stderr);
   assert.match(dropped.stdout, /dropped refs\/unfinished\/desktop\/main/);
@@ -471,4 +469,42 @@ test('fs tree --into refuses a file missing either tree line, and leaves it alon
   assert.notStrictEqual(result.code, 0);
   assert.match(result.stderr, /needs a line "<!-- tree -->" and a later line "<!-- \/tree -->"/);
   assert.strictEqual(fs.readFileSync(readme, 'utf8'), '# Toolbox\n\n<!-- tree -->\n');
+});
+
+test('git save with no message names what changed and counts the lines', () => {
+  const home = shipped('git-save-message');
+  const repo = scratch('git-save-message-repo');
+  git(['init', '-q', '-b', 'main'], repo);
+  settle(repo, 'desktop');
+  const save = () => {
+    const saved = util(home, ['git', 'save', '-n'], { cwd: repo });
+    assert.strictEqual(saved.code, 0, saved.stderr);
+    return git(['log', '-1', '--format=%s'], repo);
+  };
+
+  write(repo, 'backlog.md', 'one\ntwo\nthree\n');
+  assert.strictEqual(save(), 'backlog.md (new) +3');
+
+  write(repo, 'backlog.md', 'one\nTWO\nthree\nfour\n');
+  write(repo, 'README.md', '# readme\n');
+  assert.strictEqual(save(), 'README.md, backlog.md +3 -1', 'not every file is new, so no (new)');
+
+  git(['mv', 'README.md', 'docs.md'], repo);
+  assert.strictEqual(save(), 'README.md → docs.md');
+
+  for (const name of ['a', 'b', 'c', 'd']) write(repo, `skills/dev/fold/${name}.md`, 'x\n');
+  assert.strictEqual(save(), 'skills/dev/fold: 4 files (new) +4', 'the deepest folder holding all 4');
+
+  for (const name of ['a', 'b', 'c']) write(repo, `docs/dev/${name}.md`, 'y\n');
+  write(repo, 'backlog.md', 'one\n');
+  write(repo, 'docs.md', '# docs\n');
+  assert.strictEqual(save(), 'docs/dev, backlog.md, docs.md: 5 files +4 -4', 'largest group first');
+
+  fs.rmSync(path.join(repo, 'skills'), { recursive: true });
+  assert.strictEqual(save(), 'skills/dev/fold: 4 files (deleted) -4');
+
+  const long = 'a-folder-name-long-enough-to-matter';
+  for (const name of ['one', 'two', 'three']) write(repo, `${long}/${name}/deeper/still/${name}.md`, 'z\n');
+  write(repo, 'notes.md', 'z\n');
+  assert.strictEqual(save(), `${long}, notes.md: 4 files (new) +4`, 'past 72 characters, top-level names');
 });

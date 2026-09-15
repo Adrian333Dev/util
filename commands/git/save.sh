@@ -70,16 +70,110 @@ run() {
   fi
 }
 
-# No message given: name the files, rather than every commit reading "save".
-# Two levels deep reads better than one: "flow/global" beats "flow".
+# The deepest folder holding every path given, or nothing.
+common_dir() {
+  local prefix="" dir p first=1
+  for p in "$@"; do
+    dir=${p%/*}; [ "$dir" != "$p" ] || dir=""
+    if [ "$first" = 1 ]; then prefix=$dir; first=0; continue; fi
+    while [ -n "$prefix" ] && [ "$dir" != "$prefix" ] && [ "${dir#"$prefix"/}" = "$dir" ]; do
+      case "$prefix" in */*) prefix=${prefix%/*} ;; *) prefix="" ;; esac
+    done
+  done
+  printf '%s' "$prefix"
+}
+
+# The top-level names holding the most of the paths given, up to 3, largest first.
+largest_groups() {
+  printf '%s\n' "$@" | cut -d/ -f1 | sort | uniq -c | sort -s -k1,1nr | head -3 | sed 's/^ *[0-9]* //'
+}
+
+join_names() {
+  local out="$1"; shift
+  for name in "$@"; do out+=", $name"; done
+  printf '%s' "$out"
+}
+
+# No message given: say what changed and how much, from the staged diff alone.
+#
+#   backlog.md +12 -3
+#   skills/dev/fold/SKILL.md (new) +80
+#   docs/a.md → docs/b.md
+#   skills/dev/fold: 4 files +120 -30
+#   docs/dev, backlog.md, README.md: 12 files +310 -95
+#   lab/domain-skills (submodule)
+#
+# 1 or 2 files are named. 3 or more are named by the deepest folder holding all
+# of them, or else by up to 3 groups, largest first, a group being everything
+# under one top-level name. (new) and (deleted) appear only when true of every
+# file. Past 72 characters the names shrink to top-level names, then go.
 generated_message() {
-  local files count where
-  files=$(git diff --cached --name-only)
-  count=$(printf '%s\n' "$files" | grep -c . || true)
-  where=$(printf '%s\n' "$files" | awk -F/ 'NF>1 {print $1"/"$2; next} {print $1}' \
-          | sort -u | head -3 | paste -sd', ' -)
-  [ -n "$where" ] || where="repo"
-  echo "wip: ${count} file(s) in ${where}"
+  local files=() olds=() subs=() added=0 removed=0 all_new=1 all_deleted=1
+  local meta p old a d rest i n
+
+  # --raw gives each file's status and modes. Mode 160000 is a submodule.
+  while IFS= read -r -d '' meta; do
+    IFS= read -r -d '' p
+    old=""
+    case "${meta##* }" in R*|C*) old=$p; IFS= read -r -d '' p ;; esac
+    case "${meta##* }" in A) all_deleted=0 ;; D) all_new=0 ;; *) all_new=0; all_deleted=0 ;; esac
+    set -- $meta
+    if [ "${1#:}" = 160000 ] || [ "$2" = 160000 ]; then subs+=(1); else subs+=(0); fi
+    files+=("$p"); olds+=("$old")
+  done < <(git diff --cached -z --raw)
+
+  n=${#files[@]}
+  if [ "$n" = 0 ]; then echo "no changes staged"; return; fi
+
+  # --numstat lists the same files in the same order. A rename leaves the path
+  # empty and puts both names in the next 2 fields. A binary file counts "-".
+  i=0
+  while IFS= read -r -d '' meta; do
+    a=${meta%%$'\t'*}; rest=${meta#*$'\t'}; d=${rest%%$'\t'*}
+    if [ -z "${rest#*$'\t'}" ]; then IFS= read -r -d '' _; IFS= read -r -d '' _; fi
+    if [ "${subs[$i]}" = 0 ]; then
+      [ "$a" = - ] || added=$((added + a))
+      [ "$d" = - ] || removed=$((removed + d))
+    fi
+    i=$((i + 1))
+  done < <(git diff --cached -z --numstat)
+
+  local size=""
+  if [ "$all_new" = 1 ]; then size=" (new)"; elif [ "$all_deleted" = 1 ]; then size=" (deleted)"; fi
+  [ "$added" = 0 ] || size+=" +$added"
+  [ "$removed" = 0 ] || size+=" -$removed"
+
+  local count="$n files" msg top group names=() members=()
+  [ "$n" != 1 ] || count="1 file"
+
+  if [ "$n" -le 2 ]; then
+    for i in "${!files[@]}"; do
+      if [ "${subs[$i]}" = 1 ]; then names+=("${files[$i]} (submodule)")
+      elif [ -n "${olds[$i]}" ]; then names+=("${olds[$i]} → ${files[$i]}")
+      else names+=("${files[$i]}"); fi
+    done
+    msg="$(join_names "${names[@]}")$size"
+  else
+    group=$(common_dir "${files[@]}")
+    if [ -n "$group" ]; then
+      msg="$group: $count$size"
+    else
+      while IFS= read -r top; do
+        members=()
+        for p in "${files[@]}"; do case "$p" in "$top"|"$top"/*) members+=("$p") ;; esac; done
+        if [ "${#members[@]}" = 1 ]; then names+=("${members[0]}"); else names+=("$(common_dir "${members[@]}")"); fi
+      done < <(largest_groups "${files[@]}")
+      msg="$(join_names "${names[@]}"): $count$size"
+    fi
+  fi
+
+  if [ "${#msg}" -gt 72 ]; then
+    names=()
+    while IFS= read -r top; do names+=("$top"); done < <(largest_groups "${files[@]}")
+    msg="$(join_names "${names[@]}"): $count$size"
+  fi
+  [ "${#msg}" -le 72 ] || msg="$count$size"
+  echo "$msg"
 }
 
 if [ ${#paths[@]} -gt 0 ]; then run git add -- "${paths[@]}"; else run git add -A; fi
