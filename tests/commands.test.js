@@ -174,16 +174,49 @@ test('fs merge fences each file under its path, and honours a line range', () =>
   assert.doesNotMatch(sliced.stdout, /four/, 'a range stops where it says it stops');
 });
 
-test('fs merge fences a file longer than the fences inside it', () => {
+test('fs merge numbers every line by its place in the file, a range included', () => {
+  const home = shipped('fs-merge-numbers');
+  const dir = scratch('fs-merge-numbers-target');
+  write(dir, 'a.md', ['one', '', '', '', 'five', '', 'seven', 'eight', 'nine', 'ten'].join('\n') + '\n');
+
+  const whole = util(home, ['fs', 'merge', path.join(dir, 'a.md')]);
+  assert.strictEqual(whole.code, 0, whole.stderr);
+  assert.match(whole.stdout, /^ 1\tone$/m, 'padded to the widest number in the block');
+  assert.match(whole.stdout, /^ 2\n 5\tfive$/m, 'a run of blank lines keeps one, and the numbers jump');
+  assert.match(whole.stdout, /^10\tten$/m);
+
+  const sliced = util(home, ['fs', 'merge', `${path.join(dir, 'a.md')}:7-8`]);
+  assert.match(sliced.stdout, /^7\tseven\n8\teight$/m, 'a range counts from where it starts');
+});
+
+test('fs merge keeps a fence inside a file from closing the block', () => {
   const home = shipped('fs-merge-fence');
   const dir = scratch('fs-merge-fence-target');
   write(dir, 'doc.md', ['# Doc', '', '```js', 'let x = 1;', '```', ''].join('\n'));
 
   const run = util(home, ['fs', 'merge', path.join(dir, 'doc.md')]);
   assert.strictEqual(run.code, 0, run.stderr);
-  assert.match(run.stdout, /^```` .*doc\.md$/m, 'three backticks inside means four outside');
-  assert.match(run.stdout.trimEnd(), /\n````$/, 'and the block closes on the same width');
-  assert.match(run.stdout, /let x = 1;/, 'the inner fence survives whole');
+  assert.match(run.stdout, /^``` .*doc\.md$/m);
+  assert.match(run.stdout, /^3\t```js$/m, 'the inner fence sits behind its number');
+  assert.match(run.stdout.trimEnd(), /\n5\t```\n```$/, 'and the block closes after it');
+});
+
+test('fs tree prints the line count of every text file, and none into a document', () => {
+  const home = shipped('fs-tree-lines');
+  const dir = scratch('fs-tree-lines-target');
+  write(dir, 'three.md', 'a\nb\nc\n');
+  write(dir, 'one.txt', 'no newline at the end');
+  write(dir, 'image.bin', Buffer.from([0x89, 0x50, 0x00, 0x0a]));
+
+  const result = util(home, ['fs', 'tree', dir]);
+  assert.strictEqual(result.code, 0, result.stderr);
+  assert.match(result.stdout, /three\.md\s+3 lines$/m);
+  assert.match(result.stdout, /one\.txt\s+1 line$/m, 'a last line without a newline still counts');
+  assert.match(result.stdout, /image\.bin$/m, 'a binary file gets no count');
+
+  const readme = write(scratch('fs-tree-lines-doc'), 'README.md', '<!-- tree -->\n<!-- /tree -->\n');
+  util(home, ['fs', 'tree', dir, '--into', readme]);
+  assert.doesNotMatch(fs.readFileSync(readme, 'utf8'), /lines?$/m, 'a document would change on every edit');
 });
 
 test('fs open prints the document itself before the files it names', () => {
@@ -206,8 +239,7 @@ test('fs open prints the document itself before the files it names', () => {
   assert.strictEqual(result.code, 0, result.stderr);
   assert.match(result.stdout, /^open: note\.md and 2 files, \d+ lines$/m);
   assert.match(result.stdout, /^missing: gone\.md$/m, 'a dead path is named, never fatal');
-  assert.match(result.stdout, /^```` note\.md$/m, 'the document leads, fenced wider than its own block');
-  assert.match(result.stdout, /# Notes/, 'and the document arrives whole, never as a name');
+  assert.match(result.stdout, /^``` note\.md\n1\t# Notes$/m, 'the document leads, whole, never as a name');
   assert.match(result.stdout, /^``` a\.js$/m, 'a bare name resolves beside the document');
   assert.match(result.stdout, /three/);
   // The note travels with the document now, so the proof it was never read as
@@ -417,8 +449,8 @@ test('fs tree reads a quoted description without its quotes and escapes', () => 
   write(dir, 'someone_old-skill.md', '---\ndescription: ""\n---\n');
 
   const tree = util(home, ['fs', 'tree', dir]);
-  assert.match(tree.stdout, /mem0ai_mem0\.md\s+\/\/ The Memory Layer: "drop-in" memory for agents/);
-  assert.doesNotMatch(tree.stdout, /someone_old-skill\.md\s+\/\//, 'an empty description prints nothing');
+  assert.match(tree.stdout, /mem0ai_mem0\.md\s+3 lines\s+\/\/ The Memory Layer: "drop-in" memory for agents/);
+  assert.doesNotMatch(tree.stdout, /someone_old-skill\.md.*\/\//, 'an empty description prints nothing');
 });
 
 test('github bookmark adds a line named owner/repo to a file, once', { skip: !hasJq && 'needs jq' }, () => {

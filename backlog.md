@@ -16,6 +16,8 @@ Nothing here blocks Flow's first release.
 
 - [ ] **`util fs merge --strip-comments`**, an opt-in flag dropping comments from every block it prints. Lived as a `TODO:` inside `commands/fs/merge.js`, where `--help` printed it to anybody running the command; moved out 2026-09-11. Risky for TypeScript, where `@ts-ignore`, `declare const` and type comments each change what the code means, so the flag has to know the language before it strips a line
 
+- [ ] **An outline of any file**: the lines that give a file its shape, each with its line number, so the next read aims at one range. Markdown headings, and the functions, classes and exports of JavaScript, TypeScript and Python. Found 2026-09-24 in 586 heading searches (`grep -n '^#'`) across the machine's Claude Code transcripts. Raised by Flow's user the same day, and designed once the build starts, flag name included. **talk first**
+
 ### `git work`
 
 - [ ] **Rename it to `util git uncommitted`**: `send`, `get`, `ls` and `drop`. "Work" says nothing about what moves, and what moves is the changes you have not committed. Asked for by Flow's user 2026-09-20. The file is `commands/git/work.js`, and the label it pushes to is `refs/unfinished/<machine>/<branch>`.

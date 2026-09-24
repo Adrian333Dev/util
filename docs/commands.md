@@ -19,8 +19,8 @@ Every command prints its own file header for `--help`, opening with one line say
 
 **`fs`**
 
-- **`tree [path]`**: print a folder as a tree, hiding `node_modules`, `.git` and other build folders. Each entry carries its own `description:` line. `--depth` and `--except` trim it, and `--into <file>` writes it into a document between a line `<!-- tree -->` and a line `<!-- /tree -->`.
-- **`merge <path>...`**: print many files as one text, each in a code block labelled with its path. `src/parser.js:40-120` takes a line range, `--ext` and `--except` filter, `--force` prints past the 2000-line limit.
+- **`tree [path]`**: print a folder as a tree, hiding `node_modules`, `.git` and other build folders. Each text file carries its line count, and each entry its own `description:` line. `--depth` and `--except` trim it, and `--into <file>` writes it into a document between a line `<!-- tree -->` and a line `<!-- /tree -->`.
+- **`merge <path>...`**: print many files as one text, each in a code block labelled with its path, every line numbered. `src/parser.js:40-120` takes a line range, `--ext` and `--except` filter, `--force` prints past the 2000-line limit.
 - **`open <file>`**: print a document, then every file its `open` block lists.
 - **`link <source> <target>`**: make a symlink, refusing to replace a real file.
 
@@ -61,40 +61,40 @@ util fs open docs/notes.md
 
 Out comes the document, then both files:
 
-`````
+````
 open: docs/notes.md and 2 files, 23 lines
 
-```` docs/notes.md
-# Splitting the parser
-
-The tokenizer and the builder are one file. Pull the builder out.
-
-```open
-plan.md
-src/parser.js:2-4   # the middle bit
+``` docs/notes.md
+ 1	# Splitting the parser
+ 2
+ 3	The tokenizer and the builder are one file. Pull the builder out.
+ 4
+ 5	```open
+ 6	plan.md
+ 7	src/parser.js:2-4   # the middle bit
+ 8	```
+ 9
+10	Next session: start at step 2.
 ```
 
-Next session: start at step 2.
-````
-
 ``` docs/plan.md
-step 1: read the tokenizer
-step 2: split the builder out
+1	step 1: read the tokenizer
+2	step 2: split the builder out
 ```
 
 ``` src/parser.js:2-4
-b
-c
-d
+2	b
+3	c
+4	d
 ```
-`````
+````
 
 One command in place of three reads. **`docs/notes.md` is never modified.** It is copied into the output, whole, ahead of everything its block named.
 
 Three things that output shows:
 
 - **The label on a block is the path**, relative to the directory the command ran in. `plan.md` in the block resolved to `docs/plan.md`, beside the document.
-- **The fence grows to fit.** `docs/notes.md` holds a three-backtick fence, so its own block opens with four. Nothing inside a file can close the block early.
+- **Every line carries its number in the file.** A range counts from where it starts, so `src/parser.js:2-4` opens on line 2. A fence inside a file sits behind its number, so it never closes the block early.
 - **No language beside the path.** The extension is already sitting there.
 
 `util fs merge docs/notes.md docs/plan.md src/parser.js:2-4` prints the same thing. The block is that command line, saved inside the document instead of typed out on every run.

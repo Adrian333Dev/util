@@ -15,15 +15,18 @@
  * the other build folders are hidden already, so use the flag for whatever
  * else this one folder needs gone.
  *
- * A file or folder that describes itself has that description printed beside
- * it, lined up with its neighbours: a `description:` comment in a file, a
- * `.info` file in a folder. `util ls` prints the same line.
+ * Every text file has its line count printed beside it, so a read can be sized
+ * before it happens. A file or folder that describes itself has that
+ * description printed after, lined up with its neighbours: a `description:`
+ * comment in a file, a `.info` file in a folder. `util ls` prints the same
+ * line.
  *
  * --into keeps a tree inside a document current. The file needs a line
  * `<!-- tree -->` and a later line `<!-- /tree -->`, and everything between
  * the two is replaced by the tree, in a code block. Markdown shows neither
  * line. The count of folders and files is left out, since a tree trimmed with
- * --except would report 0 files to someone reading the document.
+ * --except would report 0 files to someone reading the document. So are the
+ * line counts, which would change the document on every edit to any file.
  */
 
 const fs = require('fs');
@@ -87,6 +90,26 @@ const globToRe = (g) =>
 const excluded = [...HIDDEN.map((n) => globToRe(n)), ...except.map(globToRe)];
 const hidden = (name) => excluded.some((re) => re.test(name));
 
+// Past this size a file is a log or a dump, and counting it costs more than
+// the number is worth.
+const COUNT_LIMIT = 10 * 1024 * 1024;
+
+/** The file's line count, or null for a binary file, a huge one, or --into. */
+function lineCount(full) {
+  if (into !== null) return null;
+  let buf;
+  try {
+    if (fs.statSync(full).size > COUNT_LIMIT) return null;
+    buf = fs.readFileSync(full);
+  } catch {
+    return null;
+  }
+  if (buf.subarray(0, 8000).includes(0)) return null;
+  let n = 0;
+  for (const byte of buf) if (byte === 10) n++;
+  return buf.length && buf[buf.length - 1] !== 10 ? n + 1 : n;
+}
+
 const out = [];
 let dirs = 0;
 let files = 0;
@@ -107,22 +130,31 @@ function walk(dir, prefix, depth) {
     .map((e) => {
       const full = path.join(dir, e.name);
       const isDir = e.isDirectory();
+      const lines = isDir ? null : lineCount(full);
       return {
         full,
         isDir,
         label: isDir ? e.name + '/' : e.name,
+        count: lines === null ? '' : `${lines} ${lines === 1 ? 'line' : 'lines'}`,
         desc: isDir ? describeFolder(full) : describeFile(full),
       };
     });
 
   // Siblings align together, so one deep name never pushes the whole tree right.
-  const width = Math.max(0, ...rows.filter((r) => r.desc).map((r) => r.label.length));
+  const extra = rows.filter((r) => r.count || r.desc);
+  const width = Math.max(0, ...extra.map((r) => r.label.length));
+  const countWidth = Math.max(0, ...rows.map((r) => r.count.length));
 
   rows.forEach((row, i) => {
     const last = i === rows.length - 1;
     row.isDir ? dirs++ : files++;
-    out.push(prefix + (last ? '└── ' : '├── ') +
-      (row.desc ? row.label.padEnd(width) + '   // ' + clip(row.desc) : row.label));
+    let line = row.label;
+    if (row.count || row.desc) {
+      line = row.label.padEnd(width);
+      if (countWidth) line += '  ' + row.count.padStart(countWidth);
+      if (row.desc) line += '   // ' + clip(row.desc);
+    }
+    out.push((prefix + (last ? '└── ' : '├── ') + line).trimEnd());
     if (row.isDir) walk(row.full, prefix + (last ? '    ' : '│   '), depth + 1);
   });
 }

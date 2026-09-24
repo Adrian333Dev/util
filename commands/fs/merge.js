@@ -11,7 +11,9 @@
  *   util fs merge src --force              print even when it runs past the limit
  *
  * Each file arrives inside a code block labelled with its path, counted from
- * the folder you ran the command in. Repeated blank lines collapse to one.
+ * the folder you ran the command in. Every line carries its line number in the
+ * file, so the next read can name a range. Repeated blank lines collapse to
+ * one, and the numbers still count them.
  * --ext and --except can each be given more than once, and a `--` ends the
  * paths, so anything you type after it is ignored.
  *
@@ -109,8 +111,23 @@ function applyFilters(files, extList, exceptPatterns) {
   });
 }
 
-function collapseBlankLines(content) {
-  return content.replace(/\n(\s*\n){2,}/g, '\n\n');
+/**
+ * Each line prefixed with its number in the file, the way Read prints one.
+ *
+ * Numbered before blank lines collapse, so a number always names the line it
+ * sits on in the file. A collapsed run shows as a jump in the numbers.
+ */
+function numberLines(content, first) {
+  const lines = content.split('\n');
+  const width = String(first + lines.length - 1).length;
+  const out = [];
+  lines.forEach((line, i) => {
+    const blank = !line.trim();
+    if (blank && i > 0 && !lines[i - 1].trim()) return;
+    const n = String(first + i).padStart(width);
+    out.push(blank ? n : `${n}\t${line}`);
+  });
+  return out.join('\n');
 }
 
 function countLines(str) {
@@ -168,30 +185,21 @@ function parseArgs() {
   return { pathArgs, rangedSpecs, extList, exceptPatterns, force };
 }
 
-/** The longest run of backticks the text itself opens a line with. */
-function longestFence(text) {
-  let longest = 0;
-  for (const m of text.matchAll(/^[ \t]*(`{3,})/gm)) longest = Math.max(longest, m[1].length);
-  return longest;
-}
-
 /**
  * One file as a fenced block, labelled with its path.
  *
- * The fence runs one backtick longer than the longest fence inside the file,
- * so a markdown file full of code blocks still closes where it should. Three
- * backticks around a document that itself fences would end the block at the
- * document's first fence, and everything after it would read as prose.
+ * Three backticks, whatever the file holds. A number opens every line, so a
+ * fence inside a markdown file never starts a line and never closes the block
+ * early.
  *
  * No language on the opener. The path ends in the extension, so a reader and a
  * model both already know what the file is, and the word costs a repetition on
  * every file in the stream.
  */
-function buildEntry(rel, raw, rangeLabel) {
-  const label = rangeLabel ? `${rel}:${rangeLabel}` : rel;
-  const content = collapseBlankLines(raw.trimEnd());
-  const fence = '`'.repeat(Math.max(3, longestFence(content) + 1));
-  return { rel, block: `${fence} ${label}\n${content}\n${fence}` };
+function buildEntry(rel, raw, range) {
+  const label = range ? `${rel}:${range.start}-${range.end}` : rel;
+  const content = numberLines(raw.trimEnd(), range ? range.start : 1);
+  return { rel, block: `\`\`\` ${label}\n${content}\n\`\`\`` };
 }
 
 function main() {
@@ -224,7 +232,7 @@ function main() {
     const rel = path.relative(process.cwd(), resolved).replace(/\\/g, '/');
     const allLines = fs.readFileSync(resolved, 'utf8').split('\n');
     const sliced = allLines.slice(start - 1, end).join('\n'); // 1-indexed, inclusive
-    entries.push(buildEntry(rel, sliced, `${start}-${end}`));
+    entries.push(buildEntry(rel, sliced, { start, end }));
   }
 
   if (entries.length === 0) {
