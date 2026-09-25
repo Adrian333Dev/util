@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * description: print many files as one text, each in a code block labelled with its path
+ * description: print many files as one text, not designed for Claude Code
  *
  * util fs merge: print many files as one text, ready to paste into a chat.
  *
