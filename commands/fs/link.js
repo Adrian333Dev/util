@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// description: make a symlink, refusing to replace a real file
-//
 // util fs link: make a symlink, the way `ln -s` does.
 //
 //   util fs link <source> <target>       one link, at the name you give

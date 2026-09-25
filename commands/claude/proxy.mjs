@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 /**
- * description: record every request Claude Code sends to the model
- *
  * util claude proxy: record every request Claude Code sends to the model.
  *
  *   util claude proxy                     listen on 8787, write ./logs/

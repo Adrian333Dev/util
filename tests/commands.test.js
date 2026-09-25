@@ -72,8 +72,6 @@ test('the shipped source lists four namespaces, two of them aliased', () => {
   const listing = util(home, ['ls']);
 
   assert.strictEqual(listing.code, 0, listing.stderr);
-  // None of the four carries a description: each name already says what it
-  // holds, so the `.info` files exist only where an alias needs a home.
   assert.match(listing.stdout, /^ {2}claude$/m);
   assert.match(listing.stdout, /^ {2}fs$/m);
   assert.match(listing.stdout, /^ {2}git · g$/m);
@@ -97,9 +95,9 @@ test('every shipped command prints its own header when asked for help', () => {
     assert.strictEqual(run.code, 0, `${name} --help exits 0: ${run.stderr}`);
     // One plain sentence, first thing, saying what the command does. A reader
     // asking for help is asking that, and nothing above it answers it.
-    assert.match(run.stdout.split('\n')[0], new RegExp(`^util ${name}: .+\\.$`),
+    const opening = run.stdout.split('\n\n')[0].replace(/\n/g, ' ');
+    assert.match(opening, new RegExp(`^util ${name}: [^.]+\\.$`),
       `${name} --help opens on a sentence saying what the command does`);
-    assert.doesNotMatch(run.stdout, /^description:/m, `${name} hides the index line`);
     // A header is what a user reads, so it carries no repository history and no
     // note to ourselves. `git work` keeps its provenance in a second comment
     // block, below the one this prints.
@@ -110,40 +108,18 @@ test('every shipped command prints its own header when asked for help', () => {
   }
 });
 
-test('fs tree prints each entry with its own description, and hides the noise', () => {
+test('fs tree prints each entry, and hides the noise', () => {
   const home = shipped('fs-tree');
   const dir = scratch('fs-tree-target');
-  write(dir, 'src/parser.js', '// description: Splits the input into tokens.\n');
+  write(dir, 'src/parser.js', '// Splits the input into tokens.\n');
   write(dir, 'notes.md', '# Notes\n');
   write(dir, 'node_modules/junk/index.js', 'module.exports = 1;\n');
 
   const result = util(home, ['fs', 'tree', dir]);
   assert.strictEqual(result.code, 0, result.stderr);
   assert.match(result.stdout, /parser\.js/);
-  assert.match(result.stdout, /Splits the input into tokens/);
+  assert.doesNotMatch(result.stdout, /Splits the input/, 'a file\'s comment stays in the file');
   assert.doesNotMatch(result.stdout, /node_modules/, 'node_modules is hidden by default');
-});
-
-test('fs tree ignores a description inside a fenced block, and takes the one outside it', () => {
-  const home = shipped('fs-tree-fences');
-  const dir = scratch('fs-tree-fences-target');
-  // The shape every page documenting the convention has, this repository's
-  // README included: an example above, the page's own marker below.
-  write(dir, 'docs/README.md', [
-    '# Writing a command',
-    '',
-    '```bash',
-    '# description: the example, which belongs to nothing',
-    '```',
-    '',
-    '<!-- description: how a command gets written -->',
-    '',
-  ].join('\n'));
-
-  const result = util(home, ['fs', 'tree', dir]);
-  assert.strictEqual(result.code, 0, result.stderr);
-  assert.match(result.stdout, /how a command gets written/);
-  assert.doesNotMatch(result.stdout, /belongs to nothing/, 'an example is not a description');
 });
 
 test('fs tree is reachable by its short name, because no other namespace has a tree', () => {
@@ -442,17 +418,6 @@ const MEM0 = {
   description: 'The Memory Layer: "drop-in"   memory\nfor agents',
 };
 
-test('fs tree reads a quoted description without its quotes and escapes', () => {
-  const home = shipped('fs-tree-quoted');
-  const dir = scratch('fs-tree-quoted-target');
-  write(dir, 'mem0ai_mem0.md', '---\ndescription: "The Memory Layer: \\"drop-in\\" memory for agents"\n---\n');
-  write(dir, 'someone_old-skill.md', '---\ndescription: ""\n---\n');
-
-  const tree = util(home, ['fs', 'tree', dir]);
-  assert.match(tree.stdout, /mem0ai_mem0\.md\s+3 lines\s+\/\/ The Memory Layer: "drop-in" memory for agents/);
-  assert.doesNotMatch(tree.stdout, /someone_old-skill\.md.*\/\//, 'an empty description prints nothing');
-});
-
 test('github bookmark adds a line named owner/repo to a file, once', { skip: !hasJq && 'needs jq' }, () => {
   const home = shipped('bookmark-line');
   const { dir, env } = fakeGitHub('bookmark-line-gh', [MEM0]);
@@ -472,8 +437,8 @@ test('github bookmark adds a line named owner/repo to a file, once', { skip: !ha
 test('fs tree --into replaces only what sits between the two tree lines', () => {
   const home = shipped('fs-tree-into');
   const dir = scratch('fs-tree-into-target');
-  write(dir, 'software/.info', 'everything else\n');
-  write(dir, 'agent-tools/.info', 'made for AI agents\n');
+  write(dir, 'software/a.md', 'x\n');
+  write(dir, 'agent-tools/b.md', 'y\n');
   const readme = write(scratch('fs-tree-into-doc'), 'README.md',
     '# Toolbox\n\nHow to add a tool.\n\n<!-- tree -->\nold tree\n<!-- /tree -->\n\nThe end.\n');
 
@@ -483,7 +448,7 @@ test('fs tree --into replaces only what sits between the two tree lines', () => 
   const text = fs.readFileSync(readme, 'utf8');
   assert.ok(text.startsWith('# Toolbox\n\nHow to add a tool.\n\n<!-- tree -->\n```\n'), text);
   assert.ok(text.endsWith('\n```\n<!-- /tree -->\n\nThe end.\n'), text);
-  assert.match(text, /agent-tools\/\s+\/\/ made for AI agents/);
+  assert.match(text, /agent-tools\/\n.*b\.md\n/);
   assert.doesNotMatch(text, /old tree/);
   assert.doesNotMatch(text, /directories/, 'no count inside a document');
 

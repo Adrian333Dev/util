@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# description: add, commit and push in one step
-#
 # util git save: stage everything, commit it and push, in one command.
 #
 #   util git save                     everything, generated message, push
@@ -20,14 +18,12 @@ push=1
 dry=0
 paths=()
 
-# The help text is this file's own header, minus the shebang and the
-# description: line, which is an index entry rather than documentation. Read
-# that way so moving a line never silently truncates the help.
+# The help text is this file's own header, minus the shebang. Read that way
+# so moving a line never silently truncates the help.
 usage() {
   awk 'NR == 1 { next }
        /^#/ {
          sub(/^# ?/, "")
-         if ($0 ~ /^description:/) next
          if ($0 == "" && !seen) next
          seen = 1
          print

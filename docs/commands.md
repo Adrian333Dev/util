@@ -19,7 +19,7 @@ Every command prints its own file header for `--help`, opening with one line say
 
 **`fs`**
 
-- **`tree [path]`**: print a folder as a tree, hiding `node_modules`, `.git` and other build folders. Each text file carries its line count, and each entry its own `description:` line. `--depth` and `--except` trim it, and `--into <file>` writes it into a document between a line `<!-- tree -->` and a line `<!-- /tree -->`.
+- **`tree [path]`**: print a folder as a tree, hiding `node_modules`, `.git` and other build folders. Each text file carries its line count. `--depth` and `--except` trim it, and `--into <file>` writes it into a document between a line `<!-- tree -->` and a line `<!-- /tree -->`.
 - **`merge <path>...`**: print many files as one text, each in a code block labelled with its path, every line numbered. `src/parser.js:40-120` takes a line range, `--ext` and `--except` filter, `--force` prints past the 2000-line limit. Not designed for Claude Code, which passes a command's output to the agent up to about 30,000 characters in total, where each `Read` call gets about 100,000.
 - **`open <file>`**: print a document, then every file its `open` block lists.
 - **`link <source> <target>`**: make a symlink, refusing to replace a real file.

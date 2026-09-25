@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 /**
- * description: print a document, then every file its open block lists
- *
  * util fs open: print a document, then every file it points at.
  *
  *   util fs open docs/notes.md                the document, then its files

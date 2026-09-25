@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# description: clone GitHub repositories, named by URL or by owner/repo
-#
 # util github clone: clone one or more repositories from GitHub.
 #
 #   util github clone <repo>... [--into <dir>]
@@ -22,7 +20,6 @@ usage() {
   awk 'NR == 1 { next }
        /^#/ {
          sub(/^# ?/, "")
-         if ($0 ~ /^description:/) next
          if ($0 == "" && !seen) next
          seen = 1
          print

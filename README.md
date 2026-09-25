@@ -16,7 +16,7 @@ A symlink builder, a repository cloner and an image optimiser have nothing in co
   - [Sources](#sources)
   - [Writing the file](#writing-the-file)
   - [Namespaces](#namespaces)
-  - [Descriptions](#descriptions)
+  - [Summaries](#summaries)
   - [When two sources claim one name](#when-two-sources-claim-one-name)
 - [Development](#development)
 
@@ -117,7 +117,7 @@ Write an executable at `<source>/<namespace>/<command>` and it exists.
 
 ```bash
 #!/usr/bin/env bash
-# description: build a symlink, refusing to replace a real file
+# util fs link: build a symlink, refusing to replace a real file.
 ...
 ```
 
@@ -130,23 +130,13 @@ Write an executable at `<source>/<namespace>/<command>` and it exists.
 
 A namespace is a folder in a source. It appears when the second command needs it. `git` has one while holding a single command, because `util save` never says save what. A namespace wrapped around one command whose name already explains itself only adds a word to type.
 
-**A namespace declares itself in a `.info` file**: a description, a short alias, or both. Every namespace here carries the alias alone:
+**A namespace can take a short alias from a `.alias` file** holding the one word, such as `g` in `git/.alias`. The alias gives the namespace a second name (`util g save`), for when a command name is no longer unique and typing the namespace every time is a chore. `git` and `github` carry one, and `fs` needs none.
 
-```
-alias: g
-```
+**Namespaces merge across sources.** Two sources both holding a `git/` folder contribute to one `git` namespace. The first source holding it names it, and a second source adding commands inherits the alias.
 
-The description is the first paragraph. An `alias:` line anywhere is stripped out before that paragraph is read, so the two sit in either order. An alias gives the namespace a second, shorter name (`util g save`), for when a command name is no longer unique and typing the namespace every time is a chore.
+### Summaries
 
-**Most namespaces need no description, and one here needs no `.info` at all.** `fs` has none: the name says what it holds, and a description repeating a name is worse than none. `git` and `github` keep theirs only because an alias needs somewhere to live.
-
-**Namespaces merge across sources.** Two sources both holding a `git/` folder contribute to one `git` namespace. The first source carrying a `.info` names it, and a second source adding commands inherits the description and the alias rather than competing for them.
-
-### Descriptions
-
-**A `description:` line inside a comment**, in the file's first 50 lines, in whatever comment syntax the language uses. `util ls` prints it beside the name, cut at the first full stop or 120 characters. Write a few words, then stop: a description is an index entry, never documentation, and a second sentence is never seen. The header comment explaining the command stays as long as it needs to be. A command missing a description still lists, with the field left blank.
-
-**A markdown file can carry one too, and anything inside a code fence is ignored.** In markdown a `#` starts a heading, so an example `# description:` line sitting in a code block looks exactly like the real marker. Put the marker outside the fences.
+**`util ls` prints the first sentence of each command's header comment**, cut at 120 characters. A leading `util <namespace> <command>:` is dropped, so `# util git save: stage everything, commit it and push.` lists as `stage everything, commit it and push`. A command with no header comment still lists, with the field left blank.
 
 ### When two sources claim one name
 
@@ -160,7 +150,7 @@ Deliberately overriding a public command with a private one is a fair thing to w
 
 ```
 util.js         the entry point: resolution and dispatch
-lib/            sources, the catalog, the description and help readers, the listing
+lib/            sources, the catalog, the help reader, the listing
 builtin/        the commands util answers itself: ls, install, uninstall, source
 commands/       the public source: <namespace>/<command>
 tests/          node --test, no dependencies
@@ -172,7 +162,7 @@ npm test
 
 No dependencies and nothing to build. `node --test` is built into Node, and every test runs against a scratch `UTIL_HOME` rather than the registry on your machine.
 
-**`--help` on a command shipped here prints that file's own header.** `lib/command.js` reads the comment at the top of the file, drops the shebang and the `description:` line, and prints the rest, so the help and the documentation are one text and cannot drift apart. One line wires it up:
+**`--help` on a command shipped here prints that file's own header.** `lib/command.js` reads the comment at the top of the file, drops the shebang, and prints the rest, so the help and the documentation are one text and cannot drift apart. One line wires it up:
 
 ```js
 require('../../lib/command').helpOrRun(__filename, process.argv.slice(2));

@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * description: move the changes you have not committed to another machine
- *
  * util git work: move the changes you have not committed to another machine.
  *
  *   util git work send            store this folder's uncommitted work, and push it

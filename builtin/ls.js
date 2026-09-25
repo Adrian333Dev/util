@@ -1,6 +1,6 @@
 'use strict';
 /**
- * `util ls`: every source, every namespace, every command, with descriptions.
+ * `util ls`: every source, every namespace, every command, with its summary.
  *
  * The only way to find a command you did not write yourself, so it prints what
  * is wrong as well as what is there: a registry path that has moved, a file

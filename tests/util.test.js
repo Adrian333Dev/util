@@ -83,7 +83,7 @@ test('a command runs from its namespace, and its arguments pass through untouche
 
 test('the command name is the filename with its extension dropped', () => {
   const { source, run } = setup('extension');
-  command(source, 'fs/tree.js', '#!/usr/bin/env node\n// description: a tree\nconsole.log("tree");\n');
+  command(source, 'fs/tree.js', '#!/usr/bin/env node\n// util fs tree: a tree.\nconsole.log("tree");\n');
 
   assert.match(run(['ls']).stdout, /tree\s+a tree/);
   assert.strictEqual(run(['fs', 'tree']).stdout.trim(), 'tree');
@@ -162,23 +162,24 @@ test('a command without its execute bit says so instead of failing obscurely', (
   assert.match(run(['ls']).stdout, /not executable/, 'and the listing shows it too');
 });
 
-test('a namespace names itself and its alias in .info, and both reach the command', () => {
+test('a namespace names its alias in .alias, and both names reach the command', () => {
   const { source, run } = setup('alias');
   command(source, 'git/save.sh');
-  write(source, 'git/.info', 'git, wrapped.\n\nalias: g\n');
+  write(source, 'git/.alias', 'g\n');
 
-  assert.match(run(['ls']).stdout, /git · g\s+git, wrapped/);
+  assert.match(run(['ls']).stdout, /^ {2}git · g$/m);
   assert.strictEqual(run(['g', 'save']).stdout.trim(), 'ran save.sh');
-  assert.match(run(['g']).stdout, /util git · util g: git, wrapped/);
+  assert.match(run(['g']).stdout, /^util git · util g$/m);
 });
 
-test('a description is read off the file, and a command missing one still lists', () => {
-  const { source, run } = setup('descriptions');
-  command(source, 'git/save.sh', '#!/usr/bin/env bash\n# description: add, commit and push in one step\nexit 0\n');
+test('the summary is the header\'s first sentence, and a command with no header still lists', () => {
+  const { source, run } = setup('summaries');
+  command(source, 'git/save.sh',
+    '#!/usr/bin/env bash\n# util git save: add, commit and push\n# in one step. Then more.\n#\n# Usage.\nexit 0\n');
   command(source, 'git/bare.sh');
 
   const listed = run(['ls']).stdout;
-  assert.match(listed, /save\s+add, commit and push in one step/);
+  assert.match(listed, /save\s+add, commit and push in one step$/m);
   assert.match(listed, /^\s+bare\s*$/m, 'the gap is the reminder, so the name still prints');
 });
 
@@ -213,21 +214,19 @@ test('an unknown word names what is available instead of failing bare', () => {
   assert.match(wrongCommand.stderr, /git has no command "nope"/);
 });
 
-test('with two sources each gets a header, labelled from its own .info', () => {
+test('with two sources each gets a header', () => {
   const dir = scratch('two-sources');
   const home = path.join(dir, 'home');
   const pub = path.join(dir, 'public');
   const priv = path.join(dir, 'private');
   command(pub, 'git/save.sh');
   command(priv, 'aws/push.sh');
-  write(pub, '.info', 'public\n');
-  write(priv, '.info', 'not published\n');
   fs.mkdirSync(home, { recursive: true });
   fs.writeFileSync(path.join(home, 'sources'), `${pub}\n${priv}\n`);
 
   const listed = util(home, ['ls']).stdout;
-  assert.match(listed, /public$/m, "a source says what it is in its own .info");
-  assert.match(listed, /not published$/m);
+  assert.match(listed, /public$/m, 'a source is headed by its path');
+  assert.match(listed, /private$/m);
 
   // One source and the header is noise, so it goes.
   util(home, ['source', 'drop', priv]);
@@ -436,7 +435,7 @@ test('a word one typo away from a real name suggests that name', () => {
 test('two letters swapped is one typo, and an alias never ties with its own namespace', () => {
   const { source, run } = setup('suggest-swap');
   command(source, 'git/save.sh');
-  write(source, path.join('git', '.info'), 'alias: g\n');
+  write(source, path.join('git', '.alias'), 'g\n');
 
   // git, g and gh are all two plain edits from gti. A swap counts as one, so
   // git wins outright, and g would answer as git anyway.
@@ -516,22 +515,22 @@ test('uninstall prints exactly what it removed, and names the registry only when
 
 test('the listing prints exactly this', () => {
   const { source, run } = setup('listing-exact');
-  write(source, path.join('git', '.info'), 'alias: g\n\nsaving work\n');
-  command(source, path.join('git', 'save.sh'), '#!/usr/bin/env bash\n# description: commit and push\n');
-  command(source, path.join('fs', 'tree.sh'), '#!/usr/bin/env bash\n# description: print a tree\n');
+  write(source, path.join('git', '.alias'), 'g\n');
+  command(source, path.join('git', 'save.sh'), '#!/usr/bin/env bash\n# util git save: commit and push.\n');
+  command(source, path.join('fs', 'tree.sh'), '#!/usr/bin/env bash\n# util fs tree: print a tree.\n');
 
   assert.strictEqual(run(['ls']).stdout,
     '  fs\n' +
     '    tree                print a tree\n' +
     '\n' +
-    '  git · g             saving work\n' +
+    '  git · g\n' +
     '    save                commit and push\n',
-    'one source needs no header, and a namespace with no .info needs no description');
+    'one source needs no header');
 });
 
 test('help carries a row for every word util answers itself, and closes on the listing', () => {
   const { source, run } = setup('help-exact');
-  command(source, path.join('git', 'save.sh'), '#!/usr/bin/env bash\n# description: commit and push\n');
+  command(source, path.join('git', 'save.sh'), '#!/usr/bin/env bash\n# util git save: commit and push.\n');
 
   const help = run(['help']).stdout;
   for (const word of RESERVED) {

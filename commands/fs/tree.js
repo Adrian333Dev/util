@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * description: print a folder as a tree, hiding node_modules, .git and other build folders
- *
  * util fs tree: print a folder and everything inside it as a tree.
  *
  *   util fs tree                    the folder you are in
@@ -16,10 +14,7 @@
  * else this one folder needs gone.
  *
  * Every text file has its line count printed beside it, so a read can be sized
- * before it happens. A file or folder that describes itself has that
- * description printed after, lined up with its neighbours: a `description:`
- * comment in a file, a `.info` file in a folder. `util ls` prints the same
- * line.
+ * before it happens.
  *
  * --into keeps a tree inside a document current. The file needs a line
  * `<!-- tree -->` and a later line `<!-- /tree -->`, and everything between
@@ -31,7 +26,6 @@
 
 const fs = require('fs');
 const path = require('path');
-const { clip, describeFile, describeFolder } = require('../../lib/describe');
 
 const ME = 'util fs tree';
 const USAGE = `${ME} [path] [--depth N] [--except pattern] [--into file]`;
@@ -44,7 +38,6 @@ const die = (message) => {
 const HIDDEN = [
   'node_modules', '.git', 'dist', 'build', '.next', '.turbo', '__pycache__',
   '.cache', 'coverage', 'out', '.svelte-kit', 'temp', '.venv', 'vendor', 'tmp',
-  '.info',
 ];
 
 const argv = process.argv.slice(2);
@@ -136,24 +129,18 @@ function walk(dir, prefix, depth) {
         isDir,
         label: isDir ? e.name + '/' : e.name,
         count: lines === null ? '' : `${lines} ${lines === 1 ? 'line' : 'lines'}`,
-        desc: isDir ? describeFolder(full) : describeFile(full),
       };
     });
 
   // Siblings align together, so one deep name never pushes the whole tree right.
-  const extra = rows.filter((r) => r.count || r.desc);
-  const width = Math.max(0, ...extra.map((r) => r.label.length));
+  const width = Math.max(0, ...rows.filter((r) => r.count).map((r) => r.label.length));
   const countWidth = Math.max(0, ...rows.map((r) => r.count.length));
 
   rows.forEach((row, i) => {
     const last = i === rows.length - 1;
     row.isDir ? dirs++ : files++;
     let line = row.label;
-    if (row.count || row.desc) {
-      line = row.label.padEnd(width);
-      if (countWidth) line += '  ' + row.count.padStart(countWidth);
-      if (row.desc) line += '   // ' + clip(row.desc);
-    }
+    if (row.count) line = row.label.padEnd(width) + '  ' + row.count.padStart(countWidth);
     out.push((prefix + (last ? '└── ' : '├── ') + line).trimEnd());
     if (row.isDir) walk(row.full, prefix + (last ? '    ' : '│   '), depth + 1);
   });

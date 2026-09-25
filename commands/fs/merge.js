@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 /**
- * description: print many files as one text, not designed for Claude Code
- *
- * util fs merge: print many files as one text, ready to paste into a chat.
+ * util fs merge: print many files as one text, ready to paste into a chat, not
+ * designed for Claude Code.
  *
  *   util fs merge src README.md            every file in a folder, and one file
  *   util fs merge src/parser.js:45-89      only lines 45 to 89 of a file

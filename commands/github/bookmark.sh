@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# description: save a repository's stars, language and last push date, as a line in a file
-#
 # util github bookmark: save a GitHub repository as a line in a file.
 #
 #   util github bookmark <repo>... [--to <file>]
@@ -28,7 +26,6 @@ usage() {
   awk 'NR == 1 { next }
        /^#/ {
          sub(/^# ?/, "")
-         if ($0 ~ /^description:/ && !seen) next
          if ($0 == "" && !seen) next
          seen = 1
          print

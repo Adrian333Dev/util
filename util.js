@@ -60,8 +60,8 @@ const NOTES = `shape    util <namespace> <command> [args]. A word that names no 
          looked up in all of them, and runs when exactly one command has that
          name, so util tree finds fs tree until a second tree exists
 groups   a namespace is a folder of commands that belong together, like git
-         or fs. It can give itself a short alias in its own .info file, which
-         is how util g save works
+         or fs. It can give itself a short alias in a .alias file holding the
+         one word, which is how util g save works
 sources  ~/.util/sources, one path per line, # for a comment. Every directory
          named there adds the commands it holds, so a public repository, a
          private one and a single project can all add commands without
@@ -73,9 +73,8 @@ adding   write an executable at <source>/<namespace>/<command> and it exists.
          mv it from a project's .util/ into the repository that should have it
 args     everything after the command name reaches the command untouched, so
          util git save --help is that command's own help
-listing  a command describes itself with a description: line in a comment in
-         its first 50 lines, and a folder describes itself in a .info file.
-         Both are one-line index entries, never the file's documentation
+listing  util ls prints the first sentence of each command's header comment,
+         after a leading util <namespace> <command>: when it has one
 clash    two sources claiming one namespace/command both refuse to run, and
          name both files. Nothing is ever hidden silently`;
 
