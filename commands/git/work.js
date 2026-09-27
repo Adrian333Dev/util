@@ -187,13 +187,19 @@ const UNNAMED =
  * twice. The hostname was the first design and was dropped for exactly that:
  * WSL hands out defaults like `me`, which both machines would report.
  *
+ * Flow names every machine it installs on as `flow.machine`, so a machine
+ * with Flow on it needs no second name: `util.machine` wins where both are set.
+ *
  * Absent is not an error here. `ls` only needs the name to mark which row is
  * this machine, and refusing to list what is stored would be a strange way to
  * ask for a setting. The commands that write something call `requireMachine`.
  */
 function machineName(git) {
-  const configured = git.try(['config', '--get', 'util.machine']);
-  const raw = process.env.UTIL_MACHINE || (configured.ok ? String(configured.stdout).trim() : '');
+  const read = (key) => {
+    const configured = git.try(['config', '--get', key]);
+    return configured.ok ? String(configured.stdout).trim() : '';
+  };
+  const raw = process.env.UTIL_MACHINE || read('util.machine') || read('flow.machine');
   if (!raw) return null;
 
   const slug = String(raw).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');

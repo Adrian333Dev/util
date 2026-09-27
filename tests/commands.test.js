@@ -307,8 +307,11 @@ test('git work refuses to send from a machine with no name, and drops a copy on 
   assert.notStrictEqual(unnamed.code, 0, 'two machines sharing a name overwrite each other silently');
   assert.match(unnamed.stderr, /git config --global util\.machine desktop/);
 
-  git(['config', 'util.machine', 'desktop'], desktop);
+  // A machine Flow installed on carries Flow's name, and that name is enough.
+  git(['config', 'flow.machine', 'desktop'], desktop);
   assert.strictEqual(util(home, ['git', 'work', 'send'], { cwd: desktop }).code, 0);
+  git(['config', '--unset', 'flow.machine'], desktop);
+  git(['config', 'util.machine', 'desktop'], desktop);
 
   // No `ls` first: `drop` fetches the labels itself, as `get` does.
   const dropped = util(home, ['git', 'work', 'drop', 'desktop'], { cwd: laptop });

@@ -121,6 +121,8 @@ Name each machine once, on each machine:
 git config --global util.machine desktop
 ```
 
+A machine with Flow on it is named already: `flow install` sets `flow.machine`, and util reads that where `util.machine` is missing.
+
 Every copy is filed under that name. Two machines answering to one name would overwrite each other on every send with nothing to report it, so `send` refuses until the name is set.
 
 The routine is then two commands:
