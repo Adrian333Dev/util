@@ -17,7 +17,7 @@ const { ROOT, scratch, write, util } = require('./helpers/scratch');
 /**
  * Two clones of one bare remote, the way two machines share one project.
  *
- * `git work` is the only command here that needs a repository rather than a
+ * `git uncommitted` is the only command here that needs a repository rather than a
  * folder, and it is the one command that overwrites files, so its tests build
  * the real thing: a remote, a first commit, and a named machine each side.
  */
@@ -76,7 +76,7 @@ test('the shipped source lists four namespaces, two of them aliased', () => {
   assert.match(listing.stdout, /^ {2}fs$/m);
   assert.match(listing.stdout, /^ {2}git · g$/m);
   assert.match(listing.stdout, /^ {2}github · gh$/m);
-  for (const name of ['proxy', 'tree', 'merge', 'open', 'link', 'save', 'work', 'clone', 'bookmark']) {
+  for (const name of ['proxy', 'tree', 'merge', 'open', 'link', 'save', 'uncommitted', 'clone', 'bookmark']) {
     assert.match(listing.stdout, new RegExp(`\\b${name}\\b`), `${name} is listed`);
   }
 });
@@ -88,7 +88,7 @@ test('every shipped command prints its own header when asked for help', () => {
   // awk, because a shell script cannot require lib/command.js.
   const commands = [
     'claude proxy', 'fs link', 'fs merge', 'fs open', 'fs tree',
-    'git save', 'git work', 'github bookmark', 'github clone',
+    'git save', 'git uncommitted', 'github bookmark', 'github clone',
   ];
   for (const name of commands) {
     const run = util(home, [...name.split(' '), '--help']);
@@ -99,7 +99,7 @@ test('every shipped command prints its own header when asked for help', () => {
     assert.match(opening, new RegExp(`^util ${name}: [^.]+\\.$`),
       `${name} --help opens on a sentence saying what the command does`);
     // A header is what a user reads, so it carries no repository history and no
-    // note to ourselves. `git work` keeps its provenance in a second comment
+    // note to ourselves. `git uncommitted` keeps its provenance in a second comment
     // block, below the one this prints.
     assert.doesNotMatch(run.stdout, /\bWas\b|\bFlow\b|\bTODO\b/,
       `${name} --help carries no provenance and no TODO`);
@@ -247,26 +247,26 @@ test('fs open still prints a document that carries no block', () => {
   assert.match(filesOnly.stdout, /^open: no block in plain\.md$/m, 'an absent block is an answer');
 });
 
-test('git work carries an edit, an untracked file and a deletion to the other machine', () => {
-  const home = shipped('git-work');
-  const { desktop, laptop } = twoMachines('git-work-repos');
+test('git uncommitted carries an edit, an untracked file and a deletion to the other machine', () => {
+  const home = shipped('git-uncommitted');
+  const { desktop, laptop } = twoMachines('git-uncommitted-repos');
 
   fs.writeFileSync(path.join(desktop, 'a.txt'), 'one\nTWO\nthree\n');
   fs.writeFileSync(path.join(desktop, 'new.txt'), 'brand new\n');
   fs.rmSync(path.join(desktop, 'keep.md'));
   const before = status(desktop);
 
-  const sent = util(home, ['git', 'work', 'send'], { cwd: desktop });
+  const sent = util(home, ['git', 'uncommitted', 'send'], { cwd: desktop });
   assert.strictEqual(sent.code, 0, sent.stderr);
   assert.match(sent.stdout, /stored as refs\/unfinished\/desktop\/main/);
   assert.match(sent.stdout, /^pushed to origin$/m);
   assert.strictEqual(status(desktop), before, 'sending changes nothing about the folder it read');
 
-  const listed = util(home, ['git', 'work', 'ls'], { cwd: laptop });
+  const listed = util(home, ['git', 'uncommitted', 'ls'], { cwd: laptop });
   assert.strictEqual(listed.code, 0, listed.stderr);
   assert.match(listed.stdout, /^desktop +main \* +\d+m ago +3 files$/m);
 
-  const got = util(home, ['git', 'work', 'get'], { cwd: laptop });
+  const got = util(home, ['git', 'uncommitted', 'get'], { cwd: laptop });
   assert.strictEqual(got.code, 0, got.stderr);
   assert.match(got.stdout, /3 files replayed from desktop onto main/);
 
@@ -279,58 +279,58 @@ test('git work carries an edit, an untracked file and a deletion to the other ma
   assert.match(status(laptop), /^ M a\.txt$/m);
 });
 
-test('git work carries a gitignored file only when .work-include names it', () => {
-  const home = shipped('git-work-include');
-  const { desktop, laptop } = twoMachines('git-work-include-repos');
+test('git uncommitted carries a gitignored file only when .uncommitted-include names it', () => {
+  const home = shipped('git-uncommitted-include');
+  const { desktop, laptop } = twoMachines('git-uncommitted-include-repos');
 
   fs.writeFileSync(path.join(desktop, '.gitignore'), '.env.local\nnever.local\n');
   fs.writeFileSync(path.join(desktop, '.env.local'), 'secret\n');
   fs.writeFileSync(path.join(desktop, 'never.local'), 'stays home\n');
-  fs.writeFileSync(path.join(desktop, '.work-include'), '# one path per line\n.env.local\n');
+  fs.writeFileSync(path.join(desktop, '.uncommitted-include'), '# one path per line\n.env.local\n');
 
-  const sent = util(home, ['git', 'work', 'send'], { cwd: desktop });
+  const sent = util(home, ['git', 'uncommitted', 'send'], { cwd: desktop });
   assert.strictEqual(sent.code, 0, sent.stderr);
 
-  const got = util(home, ['git', 'work', 'get'], { cwd: laptop });
+  const got = util(home, ['git', 'uncommitted', 'get'], { cwd: laptop });
   assert.strictEqual(got.code, 0, got.stderr);
   assert.strictEqual(fs.readFileSync(path.join(laptop, '.env.local'), 'utf8'), 'secret\n');
   assert.ok(!fs.existsSync(path.join(laptop, 'never.local')), 'an unnamed ignored file stays home');
 });
 
-test('git work refuses to send from a machine with no name, and drops a copy on request', () => {
-  const home = shipped('git-work-refusals');
-  const { desktop, laptop } = twoMachines('git-work-refusals-repos');
+test('git uncommitted refuses to send from a machine with no name, and drops a copy on request', () => {
+  const home = shipped('git-uncommitted-refusals');
+  const { desktop, laptop } = twoMachines('git-uncommitted-refusals-repos');
   fs.writeFileSync(path.join(desktop, 'a.txt'), 'changed\n');
 
   git(['config', '--unset', 'util.machine'], desktop);
-  const unnamed = util(home, ['git', 'work', 'send'], { cwd: desktop });
+  const unnamed = util(home, ['git', 'uncommitted', 'send'], { cwd: desktop });
   assert.notStrictEqual(unnamed.code, 0, 'two machines sharing a name overwrite each other silently');
   assert.match(unnamed.stderr, /git config --global util\.machine desktop/);
 
   // A machine Flow installed on carries Flow's name, and that name is enough.
   git(['config', 'flow.machine', 'desktop'], desktop);
-  assert.strictEqual(util(home, ['git', 'work', 'send'], { cwd: desktop }).code, 0);
+  assert.strictEqual(util(home, ['git', 'uncommitted', 'send'], { cwd: desktop }).code, 0);
   git(['config', '--unset', 'flow.machine'], desktop);
   git(['config', 'util.machine', 'desktop'], desktop);
 
   // No `ls` first: `drop` fetches the labels itself, as `get` does.
-  const dropped = util(home, ['git', 'work', 'drop', 'desktop'], { cwd: laptop });
+  const dropped = util(home, ['git', 'uncommitted', 'drop', 'desktop'], { cwd: laptop });
   assert.strictEqual(dropped.code, 0, dropped.stderr);
   assert.match(dropped.stdout, /dropped refs\/unfinished\/desktop\/main/);
-  assert.match(util(home, ['git', 'work', 'ls'], { cwd: laptop }).stdout, /no stored copies/);
+  assert.match(util(home, ['git', 'uncommitted', 'ls'], { cwd: laptop }).stdout, /no stored copies/);
 });
 
-test('git work with no action prints help rather than guessing at one', () => {
-  const home = shipped('git-work-help');
-  const { desktop } = twoMachines('git-work-help-repos');
+test('git uncommitted with no action prints help rather than guessing at one', () => {
+  const home = shipped('git-uncommitted-help');
+  const { desktop } = twoMachines('git-uncommitted-help-repos');
 
   // `get` overwrites the folder, so a mistyped action must never fall through
   // to it. Bare exits non-zero; asking for help is a request and exits 0.
-  const bare = util(home, ['git', 'work'], { cwd: desktop });
+  const bare = util(home, ['git', 'uncommitted'], { cwd: desktop });
   assert.notStrictEqual(bare.code, 0);
-  assert.match(bare.stdout, /util git work send/);
+  assert.match(bare.stdout, /util git uncommitted send/);
 
-  const asked = util(home, ['git', 'work', '--help'], { cwd: desktop });
+  const asked = util(home, ['git', 'uncommitted', '--help'], { cwd: desktop });
   assert.strictEqual(asked.code, 0, asked.stderr);
   assert.doesNotMatch(asked.stdout, /Flow/, 'the provenance note stays out of the help');
 });

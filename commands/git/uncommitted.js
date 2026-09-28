@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * util git work: move the changes you have not committed to another machine.
+ * util git uncommitted: move the changes you have not committed to another machine.
  *
- *   util git work send            store this folder's uncommitted work, and push it
- *     -m, --message "<text>"      label the copy
- *     -c, --clear                 stash the folder afterwards, so a branch switch works
- *   util git work get [<machine>] replay a stored copy onto the folder here
- *   util git work ls              every stored copy: machine, branch, age, file count
- *     -o, --offline               skip the fetch, read what is already here
- *   util git work drop [<machine>]  delete a stored copy, here and on the remote
- *     -a, --all                   every copy of this branch
+ *   util git uncommitted send              store this folder's uncommitted work, and push it
+ *     -m, --message "<text>"               label the copy
+ *     -c, --clear                          stash the folder afterwards, so a branch switch works
+ *   util git uncommitted get [<machine>]   replay a stored copy onto the folder here
+ *   util git uncommitted ls                every stored copy: machine, branch, age, file count
+ *     -o, --offline                        skip the fetch, read what is already here
+ *   util git uncommitted drop [<machine>]  delete a stored copy, here and on the remote
+ *     -a, --all                            every copy of this branch
  *
  * Committed work already travels through the remote. A file you have only
  * edited, or never added, has no way to travel, so switching machines either
@@ -36,9 +36,13 @@
  * remote are the whole of what it needs.
  *
  * The move renamed three things. The machine name is `util.machine`, the
- * include list is `.work-include`, and the environment override is
+ * include list was `.work-include`, and the environment override is
  * UTIL_MACHINE. Nothing renamed the refs: `refs/unfinished/` never said "flow",
  * so every copy stored before the move still reads.
+ *
+ * Was `util git work` until 2026-09-28. "Work" never said what moves, and what
+ * moves is the changes you have not committed. The include list became
+ * `.uncommitted-include` with it, and the refs stayed put again.
  *
  * This paragraph sits outside the block above because `--help` prints that one.
  */
@@ -48,7 +52,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const command = require('../../lib/command');
 
-const ME = 'util git work';
+const ME = 'util git uncommitted';
 
 /** Labels live here. Outside refs/heads/, which is the only place git acts on. */
 const NS = 'refs/unfinished';
@@ -223,7 +227,7 @@ function remoteOf(git, branch) {
 
 /** Gitignored paths that travel anyway, one per line, blank lines and # skipped. */
 function includePaths(root) {
-  const file = path.join(root, '.work-include');
+  const file = path.join(root, '.uncommitted-include');
   if (!fs.existsSync(file)) return [];
   return lines(fs.readFileSync(file, 'utf8')).filter((l) => !l.startsWith('#'));
 }
@@ -237,7 +241,7 @@ function includePaths(root) {
  *   GIT_INDEX_FILE  points git at a scratch staging list, so `add` fills that
  *                   instead of the one `git status` reads
  *   add -A          every file that is not ignored, deletions included
- *   add -f          each .work-include path, ignored or not
+ *   add -f          each .uncommitted-include path, ignored or not
  *   write-tree      turns the scratch list into a stored folder listing
  *   commit-tree     wraps that listing in a commit, parented on where you are
  *
@@ -245,7 +249,7 @@ function includePaths(root) {
  */
 function buildCopy(ctx, message) {
   const { git, root, gitDir, head } = ctx;
-  const index = path.join(gitDir, `util-work-index-${process.pid}`);
+  const index = path.join(gitDir, `util-uncommitted-index-${process.pid}`);
   const env = { GIT_INDEX_FILE: index };
 
   try {
@@ -352,7 +356,7 @@ function send({ flags }) {
   if (files.length > SHOWN) out(`  and ${files.length - SHOWN} more`);
 
   if (built.refused.length) {
-    out(`\n.work-include named ${plural(built.refused.length, 'path')} git would not add:`);
+    out(`\n.uncommitted-include named ${plural(built.refused.length, 'path')} git would not add:`);
     for (const p of built.refused) out(`  ${p}`);
   }
   if (built.nested.length) {

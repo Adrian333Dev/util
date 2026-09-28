@@ -57,8 +57,13 @@ function util(home, args, options = {}) {
   // Set for the same reason: unset, `util install` links into the real
   // ~/.local/bin, so one test that forgot the option would put symlinks on the
   // machine running the suite.
+  // An empty global git config, so a machine name set on the real machine
+  // cannot stand in for the one a test gives or leaves out.
+  const gitConfig = path.join(SCRATCH, 'gitconfig');
+  if (!fs.existsSync(gitConfig)) fs.writeFileSync(gitConfig, '');
   const env = {
     ...process.env,
+    GIT_CONFIG_GLOBAL: gitConfig,
     UTIL_HOME: home,
     UTIL_PROJECT: project || none,
     UTIL_BIN: bin || path.join(SCRATCH, 'no-bin'),

@@ -111,7 +111,7 @@ Handoffs, specs, design notes and tickets are what this is for. Somebody opens o
 
 ## Moving uncommitted work
 
-**`util git work` copies the files you edited but never committed from one machine to another.** Walk away from the desktop mid-edit, and pick the same folder up on the laptop.
+**`util git uncommitted` copies the files you edited but never committed from one machine to another.** Walk away from the desktop mid-edit, and pick the same folder up on the laptop.
 
 Committed work already travels through the remote. Edited files have no route, so switching machines either loses them or forces a junk commit.
 
@@ -128,8 +128,8 @@ Every copy is filed under that name. Two machines answering to one name would ov
 The routine is then two commands:
 
 ```bash
-util git work send      # on the machine you are leaving
-util git work get       # on the machine you are arriving at
+util git uncommitted send      # on the machine you are leaving
+util git uncommitted get       # on the machine you are arriving at
 ```
 
 `send` stores everything uncommitted and pushes it. `get`, on the other machine, fetches that copy and replays the edits into the folder, unstaged, the way you left them.
@@ -140,7 +140,7 @@ util git work get       # on the machine you are arriving at
 
 **`send --clear` empties the folder afterwards**, so a branch switch works. What it swept sits in git's stash, and `git stash pop` puts it back. Gitignored files stay where they are, because the stash does not sweep those.
 
-**Gitignored files do not travel by default.** Name the ones that should in `.work-include` at the project root, one path per line:
+**Gitignored files do not travel by default.** Name the ones that should in `.uncommitted-include` at the project root, one path per line:
 
 ```
 .env.local
@@ -164,7 +164,7 @@ git show refs/unfinished-backup/main:src/parser.js > src/parser.js
 
 A folder already matching the last commit gets no backup, having nothing to lose.
 
-**`ls` and `drop` are the housekeeping.** `util git work ls` prints every stored copy: machine, branch, age, file count. `util git work drop` deletes this machine's copy of this branch, `drop laptop` a named machine's, and `drop --all` every copy of this branch. `get` never deletes the copy it used, and prints the drop command instead.
+**`ls` and `drop` are the housekeeping.** `util git uncommitted ls` prints every stored copy: machine, branch, age, file count. `util git uncommitted drop` deletes this machine's copy of this branch, `drop laptop` a named machine's, and `drop --all` every copy of this branch. `get` never deletes the copy it used, and prints the drop command instead.
 
 ## Reading what Claude Code sends
 
