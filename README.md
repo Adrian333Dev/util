@@ -1,42 +1,39 @@
 # util
 
-One command holding all the small commands you write for yourself: `util git save`, `util fs tree`, `util github clone`.
+One command for all your small scripts: `util git save`, `util fs tree`, `util github clone`.
 
-A symlink builder, a repository cloner and an image optimiser have nothing in common except the person typing them, and each one is useful with no project open. They also pile up. 20 such scripts put 20 names on `PATH`, competing with the programs already installed there, and the short obvious names (`tree`, `link`, `clone`, `merge`) are taken. `util` takes one name, and every command sits behind it.
+20 small scripts put 20 names on your `PATH`, and the short obvious ones, such as `tree` or `clone`, are already taken. `util` takes one name, and every script sits behind it. Adding a command is writing a file.
 
-`util` has no features of its own. It reads a list of directories off disk, gathers every executable it finds inside them, and runs the one you named. Adding a command is writing a file. This repository ships one of those directories, `commands/`, registered exactly like the ones you add, so a public repository, a private one and a single project can all contribute commands without knowing about each other.
+## Install
 
-## Table of contents
+[Flow](https://github.com/Adrian333Dev/flow) installs util by itself. Without Flow, clone it anywhere and run the installer once by path:
 
-- [Typing a command](#typing-a-command)
-- [Installing](#installing)
-  - [Removing it](#removing-it)
-- [Commands](#commands)
-- [Adding a command](#adding-a-command)
-  - [Sources](#sources)
-  - [Writing the file](#writing-the-file)
-  - [Namespaces](#namespaces)
-  - [Summaries](#summaries)
-  - [When two sources claim one name](#when-two-sources-claim-one-name)
-- [Development](#development)
-
-## Typing a command
-
+```console
+$ git clone https://github.com/Adrian333Dev/util.git ~/code/util
+$ node ~/code/util/util.js install
 ```
+
+```text
+linked: ~/.local/bin/util
+linked: ~/.local/bin/u
+source added: ~/code/util/commands
+```
+
+Where `~/.local/bin` is not on your `PATH`, it prints the line to add to your shell's startup file. Nothing is copied, so an edit in the clone is live the moment you save it. `util uninstall` takes both names off again. [Installing](docs/installing.md) covers the rest.
+
+## Use
+
+```text
 util <namespace> <command> [args]
-util <command> [args]              one of a kind, so the namespace can be left out
-u ...                              second name on PATH, same program
+util <command> [args]              when only one command has that name
+u ...                              the same program, shorter
 ```
 
-**A word naming no namespace is looked up across all of them.** It runs when exactly one command has that name, so `util tree` finds `fs tree`. The day a second `tree` exists anywhere, the short form stops guessing and prints both full names.
+A mistyped name gets the closest real one: `util unistall` answers `did you mean "uninstall"?`. Everything after the command name goes to the command untouched, so `--help` prints the command's own help.
 
-**A word matching nothing suggests the closest name that does exist.** `util unistall` answers `did you mean "uninstall"?`, and `util source drpo <path>` answers the same way. Closest means one typo away: a character added, dropped or changed, or two neighbours swapped, so `util gti save` finds `git`. A namespace and its alias count as one candidate. A word equally close to two names suggests neither, because a wrong guess sends you looking in the wrong place. Every name `util` knows is covered: the built-in words, the namespaces, the aliases, and every command in every source, a project's own `.util/` included.
+5 words util answers itself:
 
-**Everything after the command name passes through untouched.** `util` dispatches to programs it did not write, so it never reads their flags. `util git save --help` is that command's own help, printed by that command.
-
-Five words `util` answers itself, so no namespace can be called one of them:
-
-```
+```text
 util ls                    every command there is, grouped by source
 util install               link both names, and register this repository
 util uninstall             unlink both names, and drop this repository
@@ -44,128 +41,10 @@ util source add <path>     read commands from a directory
 util help                  how util works, and every command there is
 ```
 
-## Installing
+[Commands](docs/commands.md) lists every command this repository ships.
 
-**Clone it anywhere, then run the installer by path once**, because `util` is not a command until that run has made it one.
+## Add a command
 
-```bash
-git clone https://github.com/Adrian333Dev/util.git ~/code/util
-node ~/code/util/util.js install
-```
+Write an executable file at `<source>/<namespace>/<command>`, in any language, with a shebang line and its execute bit. It runs at once: `commands/git/save.sh` is `util git save`. A source is any folder registered with `util source add`, and a project's own `.util/` folder counts whenever you work inside the project.
 
-`~/code/util` is an example: the installer links whatever clone it runs out of. It writes `util` and `u` into `~/.local/bin`, both pointing at `util.js`, and registers this repository's `commands/` as a source. Every later run is `util install`.
-
-```
-linked: ~/.local/bin/util
-linked: ~/.local/bin/u
-source added: ~/code/util/commands
-```
-
-**One line per thing that changed, then only the step you still have to take.** Those three lines are the whole output where `~/.local/bin` is on `PATH` already. Where it is not, neither name works yet, and the line that fixes it arrives naming the file your shell reads at startup:
-
-```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-```
-
-**`install` never writes that file itself.** Your shell config is yours. `uninstall` could not safely take a line back out of it later, and for any shell other than bash and zsh, which file to write is a guess.
-
-**A run finding every name already in place says `already` on each line**, so a finished install never reads as work being redone. Re-run it when the clone moves. Nothing is ever copied: an edit in the clone is live the moment you save it, and a new file in `commands/` needs no re-run at all.
-
-- **A shell that was already open can miss the new link.** Bash remembers where it found a command, so a terminal that ran an older `util` keeps pointing at the old path. `hash -r` clears that, and a new terminal never has it.
-- **`--bin <path>`** links somewhere other than `~/.local/bin`. `UTIL_BIN` sets the same directory from the environment, which is what the tests use.
-- **A real file already holding one of the names refuses.** The message names the path, nothing is linked, and no source is registered. An existing symlink is replaced without asking, because pointing a name at a moved clone is the whole reason to re-run.
-
-### Removing it
-
-```bash
-util uninstall
-```
-
-Both names off `PATH`, and this repository dropped from the registry. It takes `--bin <path>` on the same terms, and needs it whenever `install` was given one.
-
-**Nothing else is touched.** A source you registered by hand stays registered, `~/.util` stays where it is, and the clone stays on disk: removing that is `rm -rf` on a directory, which needs no command of its own. A name `util` did not create is left alone and named in the output, whether it is a real file or a link into a second clone. Running it twice is safe, and so is running it on a machine where nothing was installed: both say so and exit 0.
-
-## Commands
-
-Every command this repository ships, with its flags and what it prints, is in [Commands](docs/commands.md). `util ls` prints the same list off the disk, and `--help` on any command prints that command's own header comment.
-
-## Adding a command
-
-### Sources
-
-**A source is a directory laid out `<namespace>/<command>`.** Register it once and it contributes everything it holds from then on, so adding a command later is writing a file rather than running anything.
-
-```bash
-util source add ~/code/util/commands
-util source ls
-util source drop ~/code/util/commands
-```
-
-The registry is `~/.util/sources`: one path per line, `#` for a comment, `~` allowed. Editing it by hand is as supported as the three commands above. `UTIL_HOME` moves the whole folder, which is what the tests do.
-
-Three kinds of source, and the directory decides the kind:
-
-- **Public**: this repository's own `commands/`, registered when you install
-- **Private**: a second repository, registered by hand, never published
-- **A project's own**: `<project-root>/.util/`, picked up whenever your working directory is inside that project, and never written to the registry
-
-**Nothing inside a command says which kind it is.** The directory holding it decides, so publishing one is moving the file: `mv <project>/.util/git/foo <util>/commands/git/foo`, and nothing else.
-
-### Writing the file
-
-Write an executable at `<source>/<namespace>/<command>` and it exists.
-
-```bash
-#!/usr/bin/env bash
-# util fs link: build a symlink, refusing to replace a real file.
-...
-```
-
-- **Any language.** `util` runs the file and hands it every argument. It needs a shebang line and its execute bit, and `util ls` tells you when the bit is missing.
-- **The filename is the command name with any extension dropped.** `git/save.sh` is `util git save`, so a script keeps the extension that says what runs it and the command stays a word.
-- **The terminal passes through.** A command that prompts, pages or prints colour behaves exactly as it does when you run it by path.
-- **A command exits with its own status**, and `util` exits with the same one.
-
-### Namespaces
-
-A namespace is a folder in a source. It appears when the second command needs it. `git` has one while holding a single command, because `util save` never says save what. A namespace wrapped around one command whose name already explains itself only adds a word to type.
-
-**A namespace can take a short alias from a `.alias` file** holding the one word, such as `g` in `git/.alias`. The alias gives the namespace a second name (`util g save`), for when a command name is no longer unique and typing the namespace every time is a chore. `git` and `github` carry one, and `fs` needs none.
-
-**Namespaces merge across sources.** Two sources both holding a `git/` folder contribute to one `git` namespace. The first source holding it names it, and a second source adding commands inherits the alias.
-
-### Summaries
-
-**`util ls` prints the first sentence of each command's header comment**, cut at 120 characters. A leading `util <namespace> <command>:` is dropped, so `# util git save: stage everything, commit it and push.` lists as `stage everything, commit it and push`. A command with no header comment still lists, with the field left blank.
-
-### When two sources claim one name
-
-**Two sources defining the same `namespace/command` both refuse to run, and name both files.** The alternative is the bug nobody finds: a command you keep editing that never runs, because another source claimed that name first.
-
-Only that one command refuses. Everything else in both sources keeps working, and `util ls` marks the clash with both paths, so the listing is where you go to see what happened.
-
-Deliberately overriding a public command with a private one is a fair thing to want. It is not supported yet.
-
-## Development
-
-```
-util.js         the entry point: resolution and dispatch
-lib/            sources, the catalog, the help reader, the listing
-builtin/        the commands util answers itself: ls, install, uninstall, source
-commands/       the public source: <namespace>/<command>
-tests/          node --test, no dependencies
-```
-
-```bash
-npm test
-```
-
-No dependencies and nothing to build. `node --test` is built into Node, and every test runs against a scratch `UTIL_HOME` rather than the registry on your machine.
-
-**`--help` on a command shipped here prints that file's own header.** `lib/command.js` reads the comment at the top of the file, drops the shebang, and prints the rest, so the help and the documentation are one text and cannot drift apart. One line wires it up:
-
-```js
-require('../../lib/command').helpOrRun(__filename, process.argv.slice(2));
-```
-
-**Nothing obliges a command to use it.** A command in another repository cannot reach `lib/` at all, and a shell script cannot require a Node module: `git save` reads its own header with awk instead. `util` still runs any executable in any language and still never reads its arguments.
+[Adding commands](docs/adding-commands.md) covers sources, namespaces and their aliases, the line `util ls` prints, 2 sources claiming one name, and working on util itself.

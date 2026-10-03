@@ -146,7 +146,7 @@ module.exports = {
 
     // A check that passes says nothing. There is no step left to take, and
     // announcing PATH on a machine that has it right is how a finished install
-    // reads like a failed one. The shell that was already open is the README's,
+    // reads like a failed one. The shell that was already open is docs/installing.md's,
     // because it is a symptom most runs never produce.
     if (onPath(bin)) return 0;
 
