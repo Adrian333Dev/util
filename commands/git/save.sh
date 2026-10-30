@@ -6,9 +6,25 @@
 #   util git save -p src,docs "msg"   stage only those paths (comma-separated)
 #   util git save -n                  commit, do not push
 #   util git save --dry-run           print the commands, run none of them
+#   util git save -w                  inside a worktree: merge it (below). In the main
+#                                     checkout: list the worktrees, change nothing
+#   util git save -w NAME [message]   merge the worktree NAME (its folder or its branch)
+#   util git save -w ... --no-check   skip the check below
+#
+# -w commits the worktree (message: its branch name), replays it on top of the branch
+# the main checkout has out, moves that branch up to it, and pushes that branch. The
+# worktree folder stays; the worktree's own branch is never pushed. It stops, changing
+# nothing further, when:
+#   - the replay conflicts (the replay is undone, the files are named);
+#   - the main checkout has uncommitted edits to a file the merge changes;
+#   - the check fails: the shell command in `git config util.saveCheck`, run in the
+#     worktree after the replay;
+#   - no check is set and the main branch had moved on, so the replayed code is
+#     untested: run the tests, then run it again.
+# A plain `util git save` never merges anything and never looks at a worktree.
 #
 # That is all of it. This shortens `add && commit && push` and replaces nothing
-# else: amend, revert, rebase and force are plain git commands.
+# else: amend, revert and force are plain git commands.
 
 set -euo pipefail
 
@@ -17,6 +33,9 @@ msg=""
 push=1
 dry=0
 paths=()
+worktree=0
+worktree_name=""
+check=1
 
 # The help text is this file's own header, minus the shebang. Read that way
 # so moving a line never silently truncates the help.
@@ -39,6 +58,9 @@ while [ $# -gt 0 ]; do
                   for p in "${_split[@]}"; do [ -n "$p" ] && paths+=("$p"); done
                   shift 2 ;;
     -n|--no-push) push=0; shift ;;
+    -w|--worktree) worktree=1
+                  if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then worktree_name="$2"; shift 2; else shift; fi ;;
+    --no-check)   check=0; shift ;;
     --dry-run)    dry=1; shift ;;
     -h|--help)    usage; exit 0 ;;
     -*)           echo "$me: unknown option $1 (try $me --help)" >&2; exit 1 ;;
@@ -49,21 +71,132 @@ done
 
 git rev-parse --show-toplevel >/dev/null 2>&1 || { echo "$me: not inside a git repository." >&2; exit 1; }
 
-# A submodule is checked out at a commit rather than a branch, so this lands here
-# often. Detached, the commit is reachable by SHA alone and the push cannot name a
-# remote branch. Refuse before staging, rather than stranding a commit and failing.
-if ! git symbolic-ref -q HEAD >/dev/null; then
-  echo "$me: HEAD is detached, so a commit here would belong to no branch." >&2
-  echo "       Put one on it first: git switch -c <branch>" >&2
-  exit 1
-fi
-
 run() {
   if [ "$dry" = 1 ]; then
     local out; out=$(printf '%q ' "$@"); echo "  ${out% }"
   else
     "$@"
   fi
+}
+
+# Every worktree as "folder<TAB>branch", the main checkout first. The branch is empty on a detached HEAD.
+worktrees() {
+  git worktree list --porcelain | awk '
+    /^worktree / { if (folder != "") print folder "\t" branch; folder = substr($0, 10); branch = ""; next }
+    /^branch /   { branch = $2; sub("refs/heads/", "", branch) }
+    END          { if (folder != "") print folder "\t" branch }'
+}
+
+die() { echo "$me: $*" >&2; exit 1; }
+
+# A branch that has never been pushed has no upstream, and a bare push errors.
+push_in() {
+  if git -C "$1" rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    run git -C "$1" push
+  else
+    run git -C "$1" push -u origin HEAD
+  fi
+}
+
+# One path per line: what the worktree changes against `$2`, committed or not.
+worktree_changes() {
+  { git -C "$1" -c core.quotepath=off diff --name-only "$2...HEAD"
+    git -C "$1" -c core.quotepath=off diff --name-only HEAD
+    git -C "$1" -c core.quotepath=off ls-files -o --exclude-standard; } | sort -u
+}
+
+# One path per line: what the main checkout holds uncommitted.
+checkout_edits() {
+  { git -C "$1" -c core.quotepath=off diff --name-only HEAD
+    git -C "$1" -c core.quotepath=off ls-files -o --exclude-standard; } | sort -u
+}
+
+# util git save -w: merge one linked worktree into the branch the main checkout has out.
+merge_worktree() {
+  local name=$1 primary="" target="" folder branch here found="" kept changed edits overlap files
+  local linked=()
+  while IFS=$'\t' read -r folder branch; do
+    if [ -z "$primary" ]; then primary=$folder; target=$branch; continue; fi
+    [ -d "$folder" ] && linked+=("$folder	$branch")
+  done < <(worktrees)
+  [ -n "$target" ] || die "the main checkout is on a detached HEAD. Check a branch out there first."
+
+  if [ -z "$name" ]; then
+    here=$(git rev-parse --show-toplevel)
+    if [ "$(cd "$here" && pwd -P)" != "$(cd "$primary" && pwd -P)" ]; then
+      name=$here
+    else
+      echo "worktrees (pick one: $me -w <name>)"
+      for kept in ${linked[@]+"${linked[@]}"}; do
+        folder=${kept%%	*}
+        printf '  %s   %s changed files, %s commits not in %s\n' "$(basename "$folder")" \
+          "$(git -C "$folder" status --porcelain | wc -l | tr -d ' ')" \
+          "$(git -C "$folder" rev-list --count "$target..HEAD" 2>/dev/null || echo '?')" "$target"
+      done
+      echo "merges into: $target (checked out in $primary)"
+      return 0
+    fi
+  fi
+
+  for kept in ${linked[@]+"${linked[@]}"}; do
+    folder=${kept%%	*}; branch=${kept#*	}
+    if [ "$name" = "$(basename "$folder")" ] || [ "$name" = "$branch" ] || [ "$name" = "$folder" ]; then found=$folder; break; fi
+  done
+  [ -n "$found" ] || die "no worktree named \"$name\". Run $me -w to list them."
+  folder=$found
+  branch=$(git -C "$folder" symbolic-ref -q --short HEAD) || die "the worktree $folder is on a detached HEAD, so its commit would belong to no branch."
+  echo "merging $branch ($folder) into $target ($primary)"
+
+  # Before anything changes: the edits git would refuse to overwrite.
+  changed=$(worktree_changes "$folder" "$target")
+  edits=$(checkout_edits "$primary")
+  overlap=$(comm -12 <(printf '%s\n' "$changed") <(printf '%s\n' "$edits") | grep -v '^$' || true)
+  if [ -n "$overlap" ]; then
+    echo "$me: the main checkout has uncommitted edits to files this merge changes:" >&2
+    printf '  %s\n' $overlap >&2
+    echo "       Save or set those edits aside there, then run this again. Nothing was changed." >&2
+    exit 1
+  fi
+  if [ -n "$edits" ]; then
+    echo "the main checkout holds $(printf '%s\n' "$edits" | wc -l | tr -d ' ') uncommitted file(s), left as they are"
+  fi
+
+  if [ ${#paths[@]} -gt 0 ]; then run git -C "$folder" add -- "${paths[@]}"; else run git -C "$folder" add -A; fi
+  if [ "$dry" = 1 ] || ! git -C "$folder" diff --cached --quiet; then
+    run git -C "$folder" commit -m "${msg:-$branch}"
+  fi
+
+  local replayed=0
+  if ! git -C "$folder" merge-base --is-ancestor "$target" "$branch"; then
+    replayed=1
+    if ! run git -C "$folder" rebase --quiet "$target"; then
+      files=$(git -C "$folder" diff --name-only --diff-filter=U)
+      git -C "$folder" rebase --abort
+      echo "$me: $branch conflicts with $target in:" >&2
+      printf '  %s\n' $files >&2
+      echo "       The replay was undone. Fix them in $folder, then run this again." >&2
+      exit 1
+    fi
+  fi
+
+  local command=""
+  [ "$check" = 0 ] || command=$(git config --get util.saveCheck || true)
+  if [ -n "$command" ]; then
+    echo "check: $command"
+    if [ "$dry" = 1 ]; then echo "  (cd $folder && sh -c '$command')"
+    elif ! (cd "$folder" && sh -c "$command"); then
+      echo "$me: the check failed, so $target was not moved. $folder holds the committed, replayed branch." >&2
+      exit 1
+    fi
+  elif [ "$replayed" = 1 ] && [ "$check" = 1 ] && [ "$dry" = 0 ]; then
+    echo "$me: $target had moved on, so $branch was replayed on top of it and is untested." >&2
+    echo "       Run the tests in $folder, then run this again. To go without: --no-check." >&2
+    exit 1
+  fi
+
+  run git -C "$primary" merge --ff-only --quiet "$branch" || die "$target could not be moved up to $branch."
+  [ "$push" = 0 ] || push_in "$primary"
+  echo "merged $branch into $target. The worktree $folder is still there: git worktree remove, once nothing stands in it."
 }
 
 # The deepest folder holding every path given, or nothing.
@@ -172,6 +305,17 @@ generated_message() {
   echo "$msg"
 }
 
+if [ "$worktree" = 1 ]; then merge_worktree "$worktree_name"; exit $?; fi
+
+# A submodule is checked out at a commit rather than a branch, so this lands here
+# often. Detached, the commit is reachable by SHA alone and the push cannot name a
+# remote branch. Refuse before staging, rather than stranding a commit and failing.
+if ! git symbolic-ref -q HEAD >/dev/null; then
+  echo "$me: HEAD is detached, so a commit here would belong to no branch." >&2
+  echo "       Put one on it first: git switch -c <branch>" >&2
+  exit 1
+fi
+
 if [ ${#paths[@]} -gt 0 ]; then run git add -- "${paths[@]}"; else run git add -A; fi
 
 if [ "$dry" = 1 ] || ! git diff --cached --quiet; then
@@ -183,9 +327,4 @@ fi
 
 [ "$push" = 1 ] || exit 0
 
-# A branch that has never been pushed has no upstream, and a bare push errors.
-if git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
-  run git push
-else
-  run git push -u origin HEAD
-fi
+push_in .

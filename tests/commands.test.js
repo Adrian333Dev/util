@@ -42,8 +42,11 @@ function twoMachines(name) {
   return { dir, remote, desktop, laptop };
 }
 
+// The ceiling stops git looking for a repository above the scratch folders: a test whose
+// repository was wiped would otherwise commit into this repository, found one level up.
+const CEILING = path.join(ROOT, 'tmp');
 const git = (args, cwd) => {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+  const r = spawnSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, GIT_CEILING_DIRECTORIES: CEILING } });
   assert.strictEqual(r.status, 0, `git ${args[0]}: ${r.stderr}`);
   return (r.stdout || '').trim();
 };
@@ -507,4 +510,137 @@ test('git save with no message names what changed and counts the lines', () => {
   for (const name of ['one', 'two', 'three']) write(repo, `${long}/${name}/deeper/still/${name}.md`, 'z\n');
   write(repo, 'notes.md', 'z\n');
   assert.strictEqual(save(), `${long}, notes.md: 4 files (new) +4`, 'past 72 characters, top-level names');
+});
+
+/**
+ * A main checkout on `main` with a remote, and a worktree `wt` on branch `feat`
+ * beside it, for `git save -w`.
+ */
+function withWorktree(name) {
+  const dir = scratch(name);
+  const remote = path.join(dir, 'remote.git');
+  git(['init', '--bare', '-q', '-b', 'main', remote], dir);
+  const main = path.join(dir, 'main');
+  git(['clone', '-q', remote, main], dir);
+  settle(main, 'desktop');
+  for (const file of ['a.txt', 'b.txt', 'c.txt']) fs.writeFileSync(path.join(main, file), `${file}\n`);
+  git(['add', '-A'], main);
+  git(['commit', '-qm', 'first'], main);
+  git(['push', '-q', '-u', 'origin', 'main'], main);
+  const wt = path.join(dir, 'wt');
+  git(['worktree', 'add', '-q', '-b', 'feat', wt], main);
+  return { home: shipped(`${name}-home`), remote, main, wt };
+}
+
+const head = (clone, ref = 'HEAD') => git(['rev-parse', ref], clone);
+
+test('git save in the main checkout never touches a worktree, and -w alone lists them', () => {
+  const { home, main, wt } = withWorktree('git-save-w-list');
+  write(wt, 'new.txt', 'work\n');
+
+  const saved = util(home, ['git', 'save', '-n'], { cwd: main });
+  assert.strictEqual(saved.code, 0, saved.stderr);
+  assert.strictEqual(status(wt), '?? new.txt\n', 'the worktree is as it was');
+
+  const listed = util(home, ['git', 'save', '-w'], { cwd: main });
+  assert.strictEqual(listed.code, 0, listed.stderr);
+  assert.match(listed.stdout, /^ {2}wt {3}1 changed files, 0 commits not in main$/m);
+  assert.match(listed.stdout, /^merges into: main \(checked out in /m);
+  assert.strictEqual(status(wt), '?? new.txt\n', 'listing changes nothing');
+});
+
+test('git save -w commits the worktree under its branch name, moves main and pushes it', () => {
+  const { home, remote, main, wt } = withWorktree('git-save-w-merge');
+  write(wt, 'new.txt', 'work\n');
+  write(main, 'c.txt', 'edited in the main checkout\n');
+
+  const merged = util(home, ['git', 'save', '-w', 'wt'], { cwd: main });
+  assert.strictEqual(merged.code, 0, merged.stderr);
+  assert.match(merged.stdout, /1 uncommitted file\(s\), left as they are/);
+  assert.strictEqual(git(['log', '-1', '--format=%s'], main), 'feat');
+  assert.ok(fs.existsSync(path.join(main, 'new.txt')));
+  assert.strictEqual(status(main), ' M c.txt\n', 'an edit to another file stays uncommitted');
+  assert.strictEqual(head(remote, 'main'), head(main), 'main was pushed');
+  assert.ok(fs.existsSync(wt), 'the folder stays');
+  assert.notStrictEqual(git(['branch', '-r', '--list', 'origin/feat'], main), 'origin/feat', 'the worktree branch is not pushed');
+});
+
+test('git save -w inside the worktree merges that worktree, and a plain save there only commits', () => {
+  const { home, main, wt } = withWorktree('git-save-w-inside');
+  write(wt, 'one.txt', '1\n');
+  assert.strictEqual(util(home, ['git', 'save', '-n', 'plain'], { cwd: wt }).code, 0);
+  assert.strictEqual(git(['log', '-1', '--format=%s'], wt), 'plain');
+  assert.notStrictEqual(head(main), head(wt), 'main did not move');
+
+  write(wt, 'two.txt', '2\n');
+  const merged = util(home, ['git', 'save', '-w', '-n'], { cwd: wt });
+  assert.strictEqual(merged.code, 0, merged.stderr);
+  assert.strictEqual(head(main), head(wt));
+});
+
+test('git save -w stops, changing nothing, on an edit to a file the merge changes', () => {
+  const { home, main, wt } = withWorktree('git-save-w-overlap');
+  write(wt, 'a.txt', 'a changed in the worktree\n');
+  write(main, 'a.txt', 'a edited in the main checkout\n');
+  const before = head(main);
+
+  const stopped = util(home, ['git', 'save', '-w', 'wt', '-n'], { cwd: main });
+  assert.notStrictEqual(stopped.code, 0);
+  assert.match(stopped.stderr, /uncommitted edits to files this merge changes:\n {2}a\.txt/);
+  assert.strictEqual(head(main), before);
+  assert.strictEqual(status(wt), ' M a.txt\n', 'not even committed');
+});
+
+test('git save -w undoes a replay that conflicts and names the files', () => {
+  const { home, main, wt } = withWorktree('git-save-w-conflict');
+  write(wt, 'a.txt', 'from the worktree\n');
+  git(['commit', '-qam', 'worktree change'], wt);
+  write(main, 'a.txt', 'from main\n');
+  git(['commit', '-qam', 'main change'], main);
+  const branch = head(wt);
+
+  const stopped = util(home, ['git', 'save', '-w', 'wt', '-n'], { cwd: main });
+  assert.notStrictEqual(stopped.code, 0);
+  assert.match(stopped.stderr, /feat conflicts with main in:\n {2}a\.txt/);
+  assert.strictEqual(head(wt), branch, 'the replay was undone');
+  assert.strictEqual(status(wt), '');
+});
+
+test('git save -w after main moved: stops untested without a check, runs the check when set', () => {
+  const { home, main, wt } = withWorktree('git-save-w-check');
+  write(wt, 'new.txt', 'work\n');
+  write(main, 'b.txt', 'moved on\n');
+  git(['commit', '-qam', 'main moved'], main);
+
+  const untested = util(home, ['git', 'save', '-w', 'wt', '-n'], { cwd: main });
+  assert.notStrictEqual(untested.code, 0);
+  assert.match(untested.stderr, /had moved on, so feat was replayed on top of it and is untested/);
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'main'], main), 'main moved', 'main did not move');
+
+  git(['config', 'util.saveCheck', 'test -f new.txt && exit 1'], main);
+  const failed = util(home, ['git', 'save', '-w', 'wt', '-n'], { cwd: main });
+  assert.notStrictEqual(failed.code, 0);
+  assert.match(failed.stderr, /the check failed, so main was not moved/);
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'main'], main), 'main moved');
+
+  git(['config', 'util.saveCheck', 'test -f new.txt'], main);
+  const passed = util(home, ['git', 'save', '-w', 'wt', '-n'], { cwd: main });
+  assert.strictEqual(passed.code, 0, passed.stderr);
+  assert.match(passed.stdout, /check: test -f new\.txt/);
+  assert.ok(fs.existsSync(path.join(main, 'new.txt')));
+});
+
+test('git save -w with --no-check goes ahead after a replay, and a worktree that is not named is refused', () => {
+  const { home, main, wt } = withWorktree('git-save-w-nocheck');
+  write(wt, 'new.txt', 'work\n');
+  write(main, 'b.txt', 'moved on\n');
+  git(['commit', '-qam', 'main moved'], main);
+
+  const merged = util(home, ['git', 'save', '-w', 'wt', '--no-check', '-n'], { cwd: main });
+  assert.strictEqual(merged.code, 0, merged.stderr);
+  assert.ok(fs.existsSync(path.join(main, 'new.txt')));
+
+  const unknown = util(home, ['git', 'save', '-w', 'nope', '-n'], { cwd: main });
+  assert.notStrictEqual(unknown.code, 0);
+  assert.match(unknown.stderr, /no worktree named "nope"/);
 });

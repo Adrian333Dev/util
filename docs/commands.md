@@ -27,6 +27,7 @@ Every command prints its own file header for `--help`, opening with one line say
 **`git`**, aliased `g`
 
 - **`save`**: add, commit and push in one step. With no message, the message names what changed and counts the lines, such as `skills/dev/fold: 4 files +120 -30`.
+  - **`save -w [name]`** merges a git worktree: it commits the worktree (the message is its branch name), replays it on top of the branch the main checkout has out, moves that branch up to it and pushes that branch. With no name it merges the worktree you are inside, or from the main checkout lists the worktrees and changes nothing. A plain `save` never merges anything. It stops, with nothing further changed, on a conflict (the replay is undone), on uncommitted edits in the main checkout to a file the merge changes, on a failing check (`git config util.saveCheck "<command>"`, run in the worktree), and, with no check set, when the main branch had moved on and the replayed code is untested (`--no-check` goes ahead). The worktree folder stays.
 - **`work`**: move the changes you have not committed to another machine.
 
 **`github`**, aliased `gh`
