@@ -23,6 +23,10 @@
 #     untested: run the tests, then run it again.
 # A plain `util git save` never merges anything and never looks at a worktree.
 #
+# A project whose records sit on its own `flow` branch, checked out as a
+# worktree at `.flow/` in the main checkout, gets them saved the same way right
+# after, with a generated message: one save covers code and records.
+#
 # That is all of it. This shortens `add && commit && push` and replaces nothing
 # else: amend, revert and force are plain git commands.
 
@@ -325,6 +329,21 @@ else
   echo "$me: nothing to commit."   # still pushes, so this also means "catch the remote up"
 fi
 
-[ "$push" = 1 ] || exit 0
+[ "$push" = 1 ] && push_in .
 
-push_in .
+# The records: `.flow/` in the main checkout (also when saving from a code
+# worktree), and only when it is a worktree of this same repository, so Flow's
+# old `.flow` link into another repository is never committed from here.
+common=$(git rev-parse --path-format=absolute --git-common-dir)
+case "$common" in */.git) ;; *) exit 0 ;; esac
+records="${common%/.git}/.flow"
+[ "$records" != "$(git rev-parse --show-toplevel)" ] || exit 0
+[ -f "$records/.git" ] || exit 0
+[ "$(git -C "$records" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" = "$common" ] || exit 0
+
+echo "$me: records in .flow/"
+flags=()
+[ "$push" = 1 ] || flags+=(-n)
+[ "$dry" = 0 ] || flags+=(--dry-run)
+cd "$records"
+exec "$0" ${flags[@]+"${flags[@]}"}

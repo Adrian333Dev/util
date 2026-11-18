@@ -474,6 +474,39 @@ test('fs tree --into refuses a file missing either tree line, and leaves it alon
   assert.strictEqual(fs.readFileSync(readme, 'utf8'), '# Toolbox\n\n<!-- tree -->\n');
 });
 
+test('git save also saves the records on the flow branch, from the code or a code worktree', () => {
+  const home = shipped('git-save-records');
+  const dir = scratch('git-save-records-repo');
+  const remote = path.join(dir, 'remote.git');
+  git(['init', '--bare', '-q', '-b', 'main', remote], dir);
+  const repo = path.join(dir, 'app');
+  git(['clone', '-q', remote, repo], dir);
+  settle(repo, 'desktop');
+  write(repo, '.gitignore', '.flow/\n');
+  git(['worktree', 'add', '-q', '--orphan', '-b', 'flow', '.flow'], repo);
+  write(path.join(repo, '.flow'), 'inbox.md', 'an idea\n');
+  write(repo, 'app.js', 'one\n');
+
+  const saved = util(home, ['git', 'save', 'add the app'], { cwd: repo });
+  assert.strictEqual(saved.code, 0, saved.stderr);
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'main'], remote), 'add the app');
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'flow'], remote), 'inbox.md (new) +1', 'records get a generated message');
+  assert.strictEqual(git(['ls-tree', '--name-only', 'main'], repo), '.gitignore\napp.js', 'no record enters the code');
+
+  const tree = path.join(dir, 'feature');
+  git(['worktree', 'add', '-q', '-b', 'feature', tree], repo);
+  write(tree, 'feature.js', 'two\n');
+  write(path.join(repo, '.flow'), 'inbox.md', 'an idea\nanother\n');
+  const fromTree = util(home, ['git', 'save', '-n', 'the feature'], { cwd: tree });
+  assert.strictEqual(fromTree.code, 0, fromTree.stderr);
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'flow'], repo), 'inbox.md +1', "a code worktree saves the main checkout's records");
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'flow'], remote), 'inbox.md (new) +1', '-n pushes neither');
+
+  const inRecords = util(home, ['git', 'save', '-n'], { cwd: path.join(repo, '.flow') });
+  assert.strictEqual(inRecords.code, 0, inRecords.stderr);
+  assert.doesNotMatch(inRecords.stdout, /records in/, 'saving inside .flow/ saves it once');
+});
+
 test('git save with no message names what changed and counts the lines', () => {
   const home = shipped('git-save-message');
   const repo = scratch('git-save-message-repo');
