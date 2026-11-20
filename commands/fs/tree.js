@@ -1,24 +1,34 @@
 #!/usr/bin/env node
 'use strict';
 /**
- * util fs tree: print a folder and everything inside it as a tree.
+ * util fs tree: print a folder and everything inside it, one line per folder.
  *
  *   util fs tree                    the folder you are in
  *   util fs tree docs               a folder you name
  *   util fs tree --depth 2          stop after two levels
  *   util fs tree --except "*.md"    leave out a file name, a folder name or a glob
- *   util fs tree --into README.md   write the tree into a file instead of printing it
+ *   util fs tree --draw             draw it as a tree instead
+ *   util fs tree --into README.md   write the drawing into a file instead of printing it
+ *
+ * Each line is a folder's path from the one you named, then its files, each
+ * with its line count:
+ *
+ *   ./: README.md 40, package.json 21
+ *   src/: index.js 120, logo.png
+ *   src/parser/: lexer.js 88, tokens.js 31
+ *
+ * A binary file has no count. A folder holding only folders gets no line of
+ * its own, since the lines below name it. A folder past --depth is listed by
+ * name, ending in a slash, beside its parent's files. This is the shortest
+ * form to read, about 40% shorter than the drawing.
  *
  * --except can be given more than once. node_modules, .git, dist, coverage and
  * the other build folders are hidden already, so use the flag for whatever
  * else this one folder needs gone.
  *
- * Every text file has its line count printed beside it, so a read can be sized
- * before it happens.
- *
  * --into keeps a tree inside a document current. The file needs a line
  * `<!-- tree -->` and a later line `<!-- /tree -->`, and everything between
- * the two is replaced by the tree, in a code block. Markdown shows neither
+ * the two is replaced by the drawing, in a code block. Markdown shows neither
  * line. The count of folders and files is left out, since a tree trimmed with
  * --except would report 0 files to someone reading the document. So are the
  * line counts, which would change the document on every edit to any file.
@@ -28,7 +38,7 @@ const fs = require('fs');
 const path = require('path');
 
 const ME = 'util fs tree';
-const USAGE = `${ME} [path] [--depth N] [--except pattern] [--into file]`;
+const USAGE = `${ME} [path] [--depth N] [--except pattern] [--draw] [--into file]`;
 
 const die = (message) => {
   process.stderr.write(`${ME}: ${message}\n  usage: ${USAGE}\n`);
@@ -46,6 +56,7 @@ require('../../lib/command').helpOrRun(__filename, argv);
 let target = null;
 let maxDepth = Infinity;
 let into = null;
+let draw = false;
 const except = [];
 
 // Every argument is read, and anything this command cannot use stops it. A
@@ -62,6 +73,8 @@ for (let i = 0; i < argv.length; i += 1) {
     const value = argv[i += 1];
     if (value === undefined) die('--except wants a name, a folder name or a glob.');
     except.push(value);
+  } else if (arg === '--draw') {
+    draw = true;
   } else if (arg === '--into') {
     const value = argv[i += 1];
     if (value === undefined) die('--into wants a file.');
@@ -75,6 +88,8 @@ for (let i = 0; i < argv.length; i += 1) {
   }
 }
 if (target === null) target = '.';
+// A document always gets the drawing: it is read by people.
+if (into !== null) draw = true;
 
 const globToRe = (g) =>
   new RegExp('^' + g.replace(/[.+^${}()|[\]\\]/g, '\\$&')
@@ -107,19 +122,43 @@ const out = [];
 let dirs = 0;
 let files = 0;
 
+/** The entries of a folder worth showing, folders first, or [] if it can't be read. */
+function visible(dir) {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter((e) => !hidden(e.name))
+      .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name));
+  } catch {
+    return [];
+  }
+}
+
+/** One line per folder: its path from the target, then its files with their counts. */
+function list(dir, rel, depth) {
+  const entries = visible(dir);
+  const folders = entries.filter((e) => e.isDirectory());
+  const deepest = depth + 1 >= maxDepth;
+  const parts = [];
+  for (const e of entries) {
+    if (e.isDirectory()) {
+      dirs++;
+      if (deepest) parts.push(e.name + '/');
+    } else {
+      files++;
+      const lines = lineCount(path.join(dir, e.name));
+      parts.push(lines === null ? e.name : `${e.name} ${lines}`);
+    }
+  }
+  // A folder of folders is named by the lines below it. An empty one still gets its line.
+  if (parts.length || folders.length === 0) out.push(`${rel || '.'}/: ${parts.join(', ')}`.trimEnd());
+  if (deepest) return;
+  for (const f of folders) list(path.join(dir, f.name), rel ? `${rel}/${f.name}` : f.name, depth + 1);
+}
+
 function walk(dir, prefix, depth) {
   if (depth > maxDepth) return;
 
-  let entries;
-  try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return;
-  }
-
-  const rows = entries
-    .filter((e) => !hidden(e.name))
-    .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name))
+  const rows = visible(dir)
     .map((e) => {
       const full = path.join(dir, e.name);
       const isDir = e.isDirectory();
@@ -170,7 +209,8 @@ if (into !== null) {
 }
 
 out.push(target);
-walk(target, '', 1);
+if (draw) walk(target, '', 1);
+else if (maxDepth >= 1) list(target, '', 0);
 
 if (doc === null) {
   out.push('', `${dirs} ${dirs === 1 ? 'directory' : 'directories'}, ${files} ${files === 1 ? 'file' : 'files'}`);

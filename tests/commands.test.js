@@ -125,6 +125,29 @@ test('fs tree prints each entry, and hides the noise', () => {
   assert.doesNotMatch(result.stdout, /node_modules/, 'node_modules is hidden by default');
 });
 
+test('fs tree prints one line per folder, and names a folder of folders only through its children', () => {
+  const home = shipped('fs-tree-list');
+  const dir = scratch('fs-tree-list-target');
+  write(dir, 'README.md', 'a\n');
+  write(dir, 'src/parser/lexer.js', 'a\nb\n');
+  write(dir, 'src/parser/deep/more.js', 'a\n');
+  fs.mkdirSync(path.join(dir, 'empty'));
+
+  const whole = util(home, ['fs', 'tree', dir]);
+  assert.strictEqual(whole.code, 0, whole.stderr);
+  const lines = whole.stdout.trim().split('\n').slice(1, -2);
+  assert.deepStrictEqual(lines, [
+    './: README.md 1',
+    'empty/:',
+    'src/parser/: lexer.js 2',
+    'src/parser/deep/: more.js 1',
+  ], 'src/ holds only a folder, so it gets no line; an empty folder still does');
+
+  const shallow = util(home, ['fs', 'tree', dir, '--depth', '2']);
+  assert.match(shallow.stdout, /^src\/: parser\/$/m, 'a folder past the depth is named beside its parent\'s files');
+  assert.doesNotMatch(shallow.stdout, /lexer/);
+});
+
 test('fs tree is reachable by its short name, because no other namespace has a tree', () => {
   const home = shipped('fs-tree-short');
   const dir = scratch('fs-tree-short-target');
@@ -189,9 +212,13 @@ test('fs tree prints the line count of every text file, and none into a document
 
   const result = util(home, ['fs', 'tree', dir]);
   assert.strictEqual(result.code, 0, result.stderr);
-  assert.match(result.stdout, /three\.md\s+3 lines$/m);
-  assert.match(result.stdout, /one\.txt\s+1 line$/m, 'a last line without a newline still counts');
-  assert.match(result.stdout, /image\.bin$/m, 'a binary file gets no count');
+  assert.match(result.stdout, /^\.\/: image\.bin, one\.txt 1, three\.md 3$/m,
+    'a binary file gets no count, and a last line without a newline still counts');
+
+  const drawn = util(home, ['fs', 'tree', dir, '--draw']);
+  assert.match(drawn.stdout, /three\.md\s+3 lines$/m);
+  assert.match(drawn.stdout, /one\.txt\s+1 line$/m);
+  assert.match(drawn.stdout, /image\.bin$/m);
 
   const readme = write(scratch('fs-tree-lines-doc'), 'README.md', '<!-- tree -->\n<!-- /tree -->\n');
   util(home, ['fs', 'tree', dir, '--into', readme]);
