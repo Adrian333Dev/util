@@ -28,6 +28,9 @@ Every command prints its own file header for `--help`, opening with one line say
 
 - **`save`**: add, commit and push in one step. With no message, the message names what changed and counts the lines, such as `skills/dev/fold: 4 files +120 -30`.
   - **`save -w [name]`** merges a git worktree: it commits the worktree (the message is its branch name), replays it on top of the branch the main checkout has out, moves that branch up to it and pushes that branch. With no name it merges the worktree you are inside, or from the main checkout lists the worktrees and changes nothing. A plain `save` never merges anything. It stops, with nothing further changed, on a conflict (the replay is undone), on uncommitted edits in the main checkout to a file the merge changes, on a failing check (`git config util.saveCheck "<command>"`, run in the worktree), and, with no check set, when the main branch had moved on and the replayed code is untested (`--no-check` goes ahead). The worktree folder stays.
+  - **`save -a [message]`** first saves every nested repo of yours (its origin has this repo's owner) with changes or unpushed commits, deepest first, then this one. Others' clones are never committed in. A plain `save` stays in one repo.
+  - Every save first rewrites `.repos`, the list of nested repos, so it is committed with the save.
+- **`repos`**: list the git repos nested inside this one: path, yours or others', changed or clean, URL. Only the nearest are listed, each nested repo keeping its own list; folders named `node_modules`, `.venv`, `tmp`, `temp` and `downloads` are skipped. `repos write` writes `.repos` (one `<path> <url>` line each); `repos clone` clones every repo `.repos` lists that is missing, then does the same inside each, so a fresh clone of a workspace gets everything back.
 - **`work`**: move the changes you have not committed to another machine.
 
 **`github`**, aliased `gh`

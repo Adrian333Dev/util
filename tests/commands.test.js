@@ -91,7 +91,7 @@ test('every shipped command prints its own header when asked for help', () => {
   // awk, because a shell script cannot require lib/command.js.
   const commands = [
     'claude proxy', 'fs link', 'fs merge', 'fs open', 'fs tree',
-    'git save', 'git uncommitted', 'github bookmark', 'github clone',
+    'git repos', 'git save', 'git uncommitted', 'github bookmark', 'github clone',
   ];
   for (const name of commands) {
     const run = util(home, [...name.split(' '), '--help']);
@@ -704,3 +704,80 @@ test('git save -w with --no-check goes ahead after a replay, and a worktree that
   assert.notStrictEqual(unknown.code, 0);
   assert.match(unknown.stderr, /no worktree named "nope"/);
 });
+
+/**
+ * A workspace like the real one: a parent repo ignoring 2 nested repos, one of the same owner
+ * (a bare repo in the same folder) and one of another, plus a clone in tmp/ that is never listed.
+ */
+function nestedWorkspace(name) {
+  const dir = scratch(name);
+  const mine = path.join(dir, 'me');
+  const others = path.join(dir, 'someone');
+  fs.mkdirSync(mine); fs.mkdirSync(others);
+  const bare = (owner, repo) => {
+    const remote = path.join(owner, `${repo}.git`);
+    git(['init', '--bare', '-q', '-b', 'main', remote], dir);
+    const seed = path.join(dir, 'seed', repo);
+    git(['clone', '-q', remote, seed], dir);
+    settle(seed, 'desktop');
+    write(seed, 'README.md', `${repo}\n`);
+    git(['add', '-A'], seed); git(['commit', '-q', '-m', 'first'], seed); git(['push', '-q', 'origin', 'HEAD'], seed);
+    return remote;
+  };
+  const top = bare(mine, 'workspace');
+  const app = bare(mine, 'app');
+  const lib = bare(others, 'lib');
+  const ws = path.join(dir, 'ws');
+  git(['clone', '-q', top, ws], dir);
+  settle(ws, 'desktop');
+  write(ws, '.gitignore', '/app/\n/vendor/\n/tmp/\n');
+  git(['clone', '-q', app, path.join(ws, 'app')], dir);
+  settle(path.join(ws, 'app'), 'desktop');
+  git(['clone', '-q', lib, path.join(ws, 'vendor', 'lib')], dir);
+  git(['clone', '-q', lib, path.join(ws, 'tmp', 'scratch')], dir);
+  return { dir, ws, top, app, lib };
+}
+
+test('git save writes .repos, and git repos clone brings every nested repo back', () => {
+  const home = shipped('git-repos-clone');
+  const { dir, ws, top, app, lib } = nestedWorkspace('git-repos-clone-ws');
+
+  const saved = util(home, ['git', 'save', 'list the repos'], { cwd: ws });
+  assert.strictEqual(saved.code, 0, saved.stderr);
+  assert.strictEqual(fs.readFileSync(path.join(ws, '.repos'), 'utf8').split('\n').slice(1).join('\n'),
+    `app ${app}\nvendor/lib ${lib}\n`, 'nearest nested repos, tmp/ skipped');
+  assert.match(git(['ls-tree', '--name-only', 'main'], top), /\.repos/, 'committed with the save');
+
+  const listed = util(home, ['git', 'repos'], { cwd: ws });
+  assert.match(listed.stdout, /^app\s+mine\s+clean/m);
+  assert.match(listed.stdout, /^vendor\/lib\s+others\s+clean/m);
+
+  const fresh = path.join(dir, 'fresh');
+  git(['clone', '-q', top, fresh], dir);
+  const cloned = util(home, ['git', 'repos', 'clone'], { cwd: fresh });
+  assert.strictEqual(cloned.code, 0, cloned.stderr);
+  assert.ok(fs.existsSync(path.join(fresh, 'app', 'README.md')));
+  assert.ok(fs.existsSync(path.join(fresh, 'vendor', 'lib', 'README.md')));
+  const again = util(home, ['git', 'repos', 'clone'], { cwd: fresh });
+  assert.strictEqual(again.code, 0, again.stderr);
+  assert.doesNotMatch(again.stdout, /cloning/, 'a repo already there is left alone');
+});
+
+test('git save -a saves my nested repos first, never another owner\'s', () => {
+  const home = shipped('git-save-all');
+  const { ws, top, app } = nestedWorkspace('git-save-all-ws');
+  write(path.join(ws, 'app'), 'app.js', 'one\n');
+  write(path.join(ws, 'vendor', 'lib'), 'local.js', 'mine, in their clone\n');
+  write(ws, 'notes.md', 'hi\n');
+
+  const plain = util(home, ['git', 'save', '-n', 'only here'], { cwd: ws });
+  assert.strictEqual(plain.code, 0, plain.stderr);
+  assert.strictEqual(git(['status', '--porcelain'], path.join(ws, 'app')), '?? app.js', 'a plain save stays in one repo');
+
+  const all = util(home, ['git', 'save', '-a', 'everything'], { cwd: ws });
+  assert.strictEqual(all.code, 0, all.stderr);
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'main'], app), 'everything', 'the nested repo of mine is saved and pushed');
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'main'], top), 'only here', 'then this one: nothing new, pushed');
+  assert.strictEqual(git(['status', '--porcelain'], path.join(ws, 'vendor', 'lib')), '?? local.js', "another owner's clone is never committed in");
+});
+

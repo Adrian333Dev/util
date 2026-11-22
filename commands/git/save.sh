@@ -6,6 +6,8 @@
 #   util git save -p src,docs "msg"   stage only those paths (comma-separated)
 #   util git save -n                  commit, do not push
 #   util git save --dry-run           print the commands, run none of them
+#   util git save -a ["message"]      first every nested repo of mine with changes or unpushed
+#                                     commits, deepest first, then this one (below)
 #   util git save -w                  inside a worktree: merge it (below). In the main
 #                                     checkout: list the worktrees, change nothing
 #   util git save -w NAME [message]   merge the worktree NAME (its folder or its branch)
@@ -22,6 +24,12 @@
 #   - no check is set and the main branch had moved on, so the replayed code is
 #     untested: run the tests, then run it again.
 # A plain `util git save` never merges anything and never looks at a worktree.
+#
+# Every save first rewrites `.repos`, the list of the git repos nested here (`util git repos`),
+# so it is committed with the save and a new clone gets them back with `util git repos clone`.
+# -a saves each nested repo whose origin has this repo's owner, the same way, with -a, so a
+# save in the workspace reaches every project. Others' clones are never committed in. -p and
+# -w don't go with -a.
 #
 # A project whose records sit on its own `flow` branch, checked out as a
 # worktree at `.flow/` in the main checkout, gets them saved the same way right
@@ -40,6 +48,7 @@ paths=()
 worktree=0
 worktree_name=""
 check=1
+all=0
 
 # The help text is this file's own header, minus the shebang. Read that way
 # so moving a line never silently truncates the help.
@@ -65,6 +74,7 @@ while [ $# -gt 0 ]; do
     -w|--worktree) worktree=1
                   if [ $# -gt 1 ] && [ "${2#-}" = "$2" ]; then worktree_name="$2"; shift 2; else shift; fi ;;
     --no-check)   check=0; shift ;;
+    -a|--all)     all=1; shift ;;
     --dry-run)    dry=1; shift ;;
     -h|--help)    usage; exit 0 ;;
     -*)           echo "$me: unknown option $1 (try $me --help)" >&2; exit 1 ;;
@@ -310,6 +320,33 @@ generated_message() {
 }
 
 if [ "$worktree" = 1 ]; then merge_worktree "$worktree_name"; exit $?; fi
+
+here_dir=$(cd "$(dirname "$0")" && pwd)
+
+# -a: each nested repo of mine first, each with its own nested repos first in turn.
+if [ "$all" = 1 ]; then
+  [ ${#paths[@]} = 0 ] || die "-a saves whole repos, so -p doesn't go with it"
+  top=$(git rev-parse --show-toplevel)
+  flags=(-a)
+  [ "$push" = 1 ] || flags+=(-n)
+  [ "$dry" = 0 ] || flags+=(--dry-run)
+  [ -z "$msg" ] || flags+=("$msg")
+  saved_any=0
+  while IFS= read -r sub; do
+    [ -n "$sub" ] || continue
+    dirty=$(git -C "$top/$sub" status --porcelain | head -1)
+    ahead=$(git -C "$top/$sub" log --oneline '@{u}..' 2>/dev/null | head -1) || ahead=""
+    # A clean repo is still entered when repos of mine sit inside it.
+    [ -n "$dirty$ahead" ] || [ -n "$(cd "$top/$sub" && bash "$here_dir/repos.sh" mine 2>/dev/null | head -1)" ] || continue
+    echo "== $sub"
+    saved_any=1
+    (cd "$top/$sub" && "$0" "${flags[@]}") || echo "$me: $sub not saved, see above" >&2
+  done < <(cd "$top" && bash "$here_dir/repos.sh" mine)
+  [ "$saved_any" = 0 ] || echo "== ${top##*/}"
+fi
+
+# The list of nested repos, current before staging.
+if [ "$dry" = 1 ]; then echo "  util git repos write"; else bash "$here_dir/repos.sh" write; fi
 
 # A submodule is checked out at a commit rather than a branch, so this lands here
 # often. Detached, the commit is reachable by SHA alone and the push cannot name a
