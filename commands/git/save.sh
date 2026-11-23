@@ -25,11 +25,10 @@
 #     untested: run the tests, then run it again.
 # A plain `util git save` never merges anything and never looks at a worktree.
 #
-# Every save first rewrites `.repos`, the list of the git repos nested here (`util git repos`),
-# so it is committed with the save and a new clone gets them back with `util git repos clone`.
-# -a saves each nested repo whose origin has this repo's owner, the same way, with -a, so a
-# save in the workspace reaches every project. Others' clones are never committed in. -p and
-# -w don't go with -a.
+# -a saves each git repo nested here on disk (`util git repos mine`) whose origin has this
+# repo's owner, the same way, with -a, so a save in the workspace reaches every project.
+# Others' clones are never committed in. -p and -w don't go with -a. A save never writes
+# `.repos`: `util github clone` and `util git repos add` do.
 #
 # A project whose records sit on its own `flow` branch, checked out as a
 # worktree at `.flow/` in the main checkout, gets them saved the same way right
@@ -345,9 +344,6 @@ if [ "$all" = 1 ]; then
   [ "$saved_any" = 0 ] || echo "== ${top##*/}"
 fi
 
-# The list of nested repos, current before staging.
-if [ "$dry" = 1 ]; then echo "  util git repos write"; else bash "$here_dir/repos.sh" write; fi
-
 # A submodule is checked out at a commit rather than a branch, so this lands here
 # often. Detached, the commit is reachable by SHA alone and the push cannot name a
 # remote branch. Refuse before staging, rather than stranding a commit and failing.
@@ -357,7 +353,13 @@ if ! git symbolic-ref -q HEAD >/dev/null; then
   exit 1
 fi
 
-if [ ${#paths[@]} -gt 0 ]; then run git add -- "${paths[@]}"; else run git add -A; fi
+# A nested repo the parent doesn't ignore is never staged: git would commit it as an empty gitlink.
+skip=()
+while IFS= read -r sub; do
+  [ -n "$sub" ] && ! git check-ignore -q "$sub" && [ -z "$(git ls-files -- "$sub" | head -1)" ] && skip+=(":(exclude)$sub") || true
+done < <(bash "$here_dir/repos.sh" paths 2>/dev/null)
+if [ ${#paths[@]} -gt 0 ]; then run git add -- "${paths[@]}" ${skip[@]+"${skip[@]}"}
+else run git add -A -- . ${skip[@]+"${skip[@]}"}; fi
 
 if [ "$dry" = 1 ] || ! git diff --cached --quiet; then
   [ -n "$msg" ] || msg=$(generated_message)
@@ -366,7 +368,8 @@ else
   echo "$me: nothing to commit."   # still pushes, so this also means "catch the remote up"
 fi
 
-[ "$push" = 1 ] && push_in .
+# A branch with no commit yet (a new project's records) has nothing to push.
+if [ "$push" = 1 ] && git rev-parse -q --verify HEAD >/dev/null; then push_in .; fi
 
 # The records: `.flow/` in the main checkout (also when saving from a code
 # worktree), and only when it is a worktree of this same repository, so Flow's

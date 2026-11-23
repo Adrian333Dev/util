@@ -79,7 +79,7 @@ test('the shipped source lists four namespaces, two of them aliased', () => {
   assert.match(listing.stdout, /^ {2}fs$/m);
   assert.match(listing.stdout, /^ {2}git · g$/m);
   assert.match(listing.stdout, /^ {2}github · gh$/m);
-  for (const name of ['proxy', 'tree', 'merge', 'open', 'link', 'save', 'uncommitted', 'clone', 'bookmark']) {
+  for (const name of ['proxy', 'tree', 'merge', 'open', 'link', 'repos', 'save', 'uncommitted', 'bookmark']) {
     assert.match(listing.stdout, new RegExp(`\\b${name}\\b`), `${name} is listed`);
   }
 });
@@ -91,7 +91,7 @@ test('every shipped command prints its own header when asked for help', () => {
   // awk, because a shell script cannot require lib/command.js.
   const commands = [
     'claude proxy', 'fs link', 'fs merge', 'fs open', 'fs tree',
-    'git repos', 'git save', 'git uncommitted', 'github bookmark', 'github clone',
+    'git repos', 'git save', 'git uncommitted', 'github bookmark',
   ];
   for (const name of commands) {
     const run = util(home, [...name.split(' '), '--help']);
@@ -412,10 +412,10 @@ test('fs link refuses two sources when the target is not a directory', () => {
   assert.ok(!fs.existsSync(path.join(dir, 'nope.js')), 'nothing was written before the refusal');
 });
 
-test('github clone and bookmark refuse an empty argument list', () => {
+test('repos clone and github bookmark refuse an empty argument list', () => {
   const home = shipped('github-args');
 
-  const clone = util(home, ['github', 'clone']);
+  const clone = util(home, ['repos', 'clone']);
   assert.notStrictEqual(clone.code, 0);
   assert.match(clone.stderr, /name at least one repo/);
 
@@ -738,29 +738,83 @@ function nestedWorkspace(name) {
   return { dir, ws, top, app, lib };
 }
 
-test('git save writes .repos, and git repos clone brings every nested repo back', () => {
+test('git repos add records nested repos, git repos marks the rest, git repos restore brings them back', () => {
   const home = shipped('git-repos-clone');
   const { dir, ws, top, app, lib } = nestedWorkspace('git-repos-clone-ws');
+  const reposFile = (folder) => fs.readFileSync(path.join(folder, '.repos'), 'utf8').split('\n').slice(1).join('\n');
 
-  const saved = util(home, ['git', 'save', 'list the repos'], { cwd: ws });
+  const before = util(home, ['git', 'repos'], { cwd: ws });
+  assert.match(before.stdout, /^app\s+mine\s+clean\s+\S+\s+\(not in \.repos\)$/m, 'on disk, unlisted');
+  assert.doesNotMatch(before.stdout, /^tmp\//m, 'tmp/ skipped');
+  const saved = util(home, ['git', 'save', '-n', 'nothing listed'], { cwd: ws });
   assert.strictEqual(saved.code, 0, saved.stderr);
-  assert.strictEqual(fs.readFileSync(path.join(ws, '.repos'), 'utf8').split('\n').slice(1).join('\n'),
-    `app ${app}\nvendor/lib ${lib}\n`, 'nearest nested repos, tmp/ skipped');
-  assert.match(git(['ls-tree', '--name-only', 'main'], top), /\.repos/, 'committed with the save');
+  assert.ok(!fs.existsSync(path.join(ws, '.repos')), 'a save never writes .repos');
+
+  const added = util(home, ['git', 'repos', 'add', 'app', 'vendor/lib/'], { cwd: ws });
+  assert.strictEqual(added.code, 0, added.stderr);
+  assert.strictEqual(reposFile(ws), `app ${app}\nvendor/lib ${lib}\n`);
+  const fromBelow = util(home, ['git', 'repos', 'add', 'lib'], { cwd: path.join(ws, 'vendor') });
+  assert.strictEqual(fromBelow.code, 0, fromBelow.stderr);
+  assert.strictEqual(reposFile(ws), `app ${app}\nvendor/lib ${lib}\n`, 'a path is taken from where you stand, recorded once');
+  const link = path.join(dir, 'ws-link');
+  fs.symlinkSync(ws, link);
+  const throughLink = util(home, ['git', 'repos', 'add', 'app'], { cwd: link, env: { PWD: link } });
+  assert.strictEqual(throughLink.code, 0, throughLink.stderr);
+  assert.strictEqual(reposFile(ws), `app ${app}\nvendor/lib ${lib}\n`, 'a path reached through a symlink is still recorded relative');
+  const notRepo = util(home, ['git', 'repos', 'add', 'vendor'], { cwd: ws });
+  assert.notStrictEqual(notRepo.code, 0);
+  assert.match(notRepo.stderr, /not a git repo/);
 
   const listed = util(home, ['git', 'repos'], { cwd: ws });
   assert.match(listed.stdout, /^app\s+mine\s+clean/m);
   assert.match(listed.stdout, /^vendor\/lib\s+others\s+clean/m);
+  assert.doesNotMatch(listed.stdout, /not in \.repos/);
+  assert.strictEqual(util(home, ['git', 'save', 'list the repos'], { cwd: ws }).code, 0);
+  assert.match(git(['ls-tree', '--name-only', 'main'], top), /\.repos/, 'committed like any file');
 
   const fresh = path.join(dir, 'fresh');
   git(['clone', '-q', top, fresh], dir);
-  const cloned = util(home, ['git', 'repos', 'clone'], { cwd: fresh });
+  assert.match(util(home, ['git', 'repos'], { cwd: fresh }).stdout, /^app\s+mine\s+missing/m, 'listed, not on disk');
+  const cloned = util(home, ['git', 'repos', 'restore'], { cwd: fresh });
   assert.strictEqual(cloned.code, 0, cloned.stderr);
   assert.ok(fs.existsSync(path.join(fresh, 'app', 'README.md')));
   assert.ok(fs.existsSync(path.join(fresh, 'vendor', 'lib', 'README.md')));
-  const again = util(home, ['git', 'repos', 'clone'], { cwd: fresh });
+  const again = util(home, ['repos', 'restore'], { cwd: fresh });
   assert.strictEqual(again.code, 0, again.stderr);
   assert.doesNotMatch(again.stdout, /cloning/, 'a repo already there is left alone');
+
+  const dropped = util(home, ['git', 'repos', 'drop', 'vendor/lib'], { cwd: ws });
+  assert.strictEqual(dropped.code, 0, dropped.stderr);
+  assert.strictEqual(reposFile(ws), `app ${app}\n`);
+  util(home, ['git', 'repos', 'drop', 'app'], { cwd: ws });
+  assert.ok(!fs.existsSync(path.join(ws, '.repos')), 'the last one dropped takes the file');
+});
+
+test('repos clone records each clone in the .repos of the repo holding it, and one already there', () => {
+  const home = shipped('github-clone-repos');
+  const { dir, ws } = nestedWorkspace('github-clone-repos-ws');
+  // github.com answered by the bare repos on disk.
+  const env = {
+    GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: `url.${dir}/.insteadOf`, GIT_CONFIG_VALUE_0: 'https://github.com/',
+    GIT_CEILING_DIRECTORIES: CEILING,
+  };
+
+  const cloned = util(home, ['repos', 'clone', 'me/app', 'https://github.com/someone/lib', '--into', 'repos'], { cwd: ws, env });
+  assert.strictEqual(cloned.code, 0, cloned.stderr);
+  assert.strictEqual(fs.readFileSync(path.join(ws, '.repos'), 'utf8').split('\n').slice(1).join('\n'),
+    'repos/app https://github.com/me/app\nrepos/lib https://github.com/someone/lib\n');
+  assert.match(cloned.stderr, /doesn't ignore repos\/app/, 'an unignored clone is pointed out');
+  fs.writeFileSync(path.join(ws, '.repos'), '');
+  const have = util(home, ['repos', 'clone', 'git@github.com:me/app.git', '--into', 'repos'], { cwd: ws, env });
+  assert.strictEqual(have.code, 0, have.stderr);
+  assert.match(have.stdout, /^have: app$/m, 'one on disk is not cloned again');
+  assert.match(fs.readFileSync(path.join(ws, '.repos'), 'utf8'), /^repos\/app https:\/\/github.com\/me\/app$/m, 'but is recorded');
+
+  const outside = scratch('github-clone-outside');
+  const loose = util(home, ['git', 'repos', 'clone', 'me/app'], { cwd: outside, env });
+  assert.strictEqual(loose.code, 0, loose.stderr);
+  assert.ok(fs.existsSync(path.join(outside, 'app', 'README.md')));
+  assert.doesNotMatch(loose.stdout, /\.repos/, 'in no repo, nothing is recorded');
 });
 
 test('git save -a saves my nested repos first, never another owner\'s', () => {
