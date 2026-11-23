@@ -37,9 +37,11 @@
 # That is all of it. This shortens `add && commit && push` and replaces nothing
 # else: amend, revert and force are plain git commands.
 
-set -euo pipefail
+set -Eeuo pipefail
 
 me="util git save"
+# set -e alone exits without a word: name the failed line. Inside a subshell (a $(...)) the line holding it reports.
+trap 'rc=$?; [ "$BASH_SUBSHELL" != 0 ] || echo "$me: stopped at line $LINENO${FUNCNAME:+ (in $FUNCNAME, called from line ${BASH_LINENO[0]})}: $BASH_COMMAND (status $rc)" >&2' ERR
 msg=""
 push=1
 dry=0
@@ -333,7 +335,8 @@ if [ "$all" = 1 ]; then
   saved_any=0
   while IFS= read -r sub; do
     [ -n "$sub" ] || continue
-    dirty=$(git -C "$top/$sub" status --porcelain | head -1)
+    # Under pipefail, git dies of SIGPIPE once head has its line, so the status is not git's.
+    dirty=$(git -C "$top/$sub" status --porcelain | head -1) || true
     ahead=$(git -C "$top/$sub" log --oneline '@{u}..' 2>/dev/null | head -1) || ahead=""
     # A clean repo is still entered when repos of mine sit inside it.
     [ -n "$dirty$ahead" ] || [ -n "$(cd "$top/$sub" && bash "$here_dir/repos.sh" mine 2>/dev/null | head -1)" ] || continue

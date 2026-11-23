@@ -835,3 +835,27 @@ test('git save -a saves my nested repos first, never another owner\'s', () => {
   assert.strictEqual(git(['status', '--porcelain'], path.join(ws, 'vendor', 'lib')), '?? local.js', "another owner's clone is never committed in");
 });
 
+test('git save names the line it stopped at, rather than exiting without a word', () => {
+  const home = shipped('git-save-stopped');
+  const dir = scratch('git-save-stopped-repo');
+  git(['init', '-q', '-b', 'main'], dir);
+  write(dir, 'a.md', 'a\n');
+  const saved = util(home, ['git', 'save', 'no origin to push to'], { cwd: dir });
+  assert.notStrictEqual(saved.code, 0);
+  assert.match(saved.stderr, /^util git save: stopped at line \d+ \(in run, called from line \d+\): .* \(status \d+\)$/m);
+});
+
+test('git save -a gets past a nested repo with more changes than a pipe holds', () => {
+  // `git status | head -1` under pipefail: git dies of SIGPIPE once head has its
+  // line, and the save stopped there, silently, with every later repo unsaved.
+  const home = shipped('git-save-all-many');
+  const { ws, top, app } = nestedWorkspace('git-save-all-many-ws');
+  for (let i = 0; i < 1500; i++) write(path.join(ws, 'app'), `${String(i).padStart(4, '0')}-${'x'.repeat(60)}.md`, 'x\n');
+  write(ws, 'notes.md', 'hi\n');
+
+  const all = util(home, ['git', 'save', '-a', 'everything'], { cwd: ws });
+  assert.strictEqual(all.code, 0, all.stderr);
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'main'], app), 'everything', 'the nested repo is saved');
+  assert.strictEqual(git(['log', '-1', '--format=%s', 'main'], top), 'everything', 'and the save goes on to this one');
+});
+

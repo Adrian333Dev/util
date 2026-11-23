@@ -26,9 +26,11 @@
 # origin can't be added, since nothing could restore it. Any failure makes the exit status
 # non-zero, and what worked stands.
 
-set -euo pipefail
+set -Eeuo pipefail
 
 me="util git repos"
+# set -e alone exits without a word: name the failed line. Inside a subshell (a $(...)) the line holding it reports.
+trap 'rc=$?; [ "$BASH_SUBSHELL" != 0 ] || echo "$me: stopped at line $LINENO${FUNCNAME:+ (in $FUNCNAME, called from line ${BASH_LINENO[0]})}: $BASH_COMMAND (status $rc)" >&2' ERR
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
 }
